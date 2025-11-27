@@ -1,0 +1,1547 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sales Campaign Dashboard</title>
+  <style>
+    * { box-sizing: border-box; margin:0; padding:0; }
+    body { font-family: system-ui, sans-serif; background: #0f172a; color: #e2e8f0; padding: 20px; }
+    .dashboard { max-width: 1400px; margin: auto; }
+    h1 { font-size: 2.2rem; color: white; margin-bottom: 8px; display: flex; align-items: center; gap: 12px; }
+    .header { background: #1e293b; padding: 20px; border-radius: 12px; border: 1px solid #334155; margin-bottom: 24px; display: flex; justify-content: space-between; flex-wrap: wrap; gap: 16px; }
+    .controls { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
+    button, select, input { padding: 10px 16px; border: none; border-radius: 8px; background: #334155; color: white; font-size: 0.95rem; cursor: pointer; }
+    button.active, select:focus, input:focus { background: #3b82f6; outline: none; }
+    input, select { min-width: 200px; }
+    .kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; margin-bottom: 32px; }
+    .kpi { background: #1e293b; padding: 20px; border-radius: 12px; border: 1px solid #334155; text-align: center; }
+    .kpi h3 { font-size: 2rem; color: #10b981; margin: 8px 0; }
+    .chart-box { background: #1e293b; padding: 20px; border-radius: 12px; border: 1px solid #334155; margin-bottom: 32px; position: relative; }
+    canvas { display: block; width: 100%; height: 340px; }
+    .tooltip { position: absolute; background: #1e293b; border: 1px solid #475569; padding: 8px 12px; border-radius: 6px; font-size: 0.9rem; pointer-events: none; opacity: 0; transition: opacity 0.2s; z-index: 10; }
+    table { width: 100%; border-collapse: collapse; background: #1e293b; border-radius: 12px; overflow: hidden; border: 1px solid #334155; }
+    th { background: #334155; padding: 14px; text-align: left; font-weight: 600; font-size: 0.85rem; text-transform: uppercase; }
+    td { padding: 14px; border-bottom: 1px solid #334155; }
+    tr:hover { background: #33415540; }
+    .reward { padding: 6px 12px; border-radius: 8px; font-weight: bold; font-size: 0.85rem; color: white; }
+    .insurance { background: #64748b; }
+    .rm-club { background: #3b82f6; }
+    .gm-club { background: #8b5cf6; }
+    .chairman-club { background: #f97316; }
+    .elite-club { background: #dc2626; box-shadow: 0 0 12px rgba(220,38,38,0.6); }
+    .rm-reward { padding: 8px 16px; border-radius: 10px; font-weight: bold; color: white; text-align: center; }
+    .gm-club-rm { background: linear-gradient(135deg, #8b5cf6, #a78bfa); }
+    .chairman-club-rm { background: linear-gradient(135deg, #f97316, #fb923c); }
+    .elite-club-rm { background: linear-gradient(135deg, #dc2626, #ef4444); box-shadow: 0 0 15px rgba(239,68,68,0.5); }
+    .section-title { font-size: 1.5rem; color: #60a5fa; margin: 40px 0 16px; font-weight: bold; }
+  </style>
+</head>
+<body>
+
+<div class="dashboard">
+  <div class="header">
+    <div>
+      <h1>Sales Campaign Dashboard</h1>
+      <p style="color:#94a3b8">October – November 2025 | Hardcoded Data</p>
+    </div>
+    <div class="controls">
+      <button data-month="All" class="active">All Months</button>
+      <button data-month="October">October</button>
+      <button data-month="November">November</button>
+      <select id="regionSelect"><option value="">All Regions</option></select>
+      <input type="text" id="search" placeholder="Search branch or region...">
+    </div>
+  </div>
+
+  <div class="kpi-grid">
+    <div class="kpi"><h3 id="total">₹0L</h3><p>Total Sales</p></div>
+    <div class="kpi"><h3 id="eliteBranches">0</h3><p>Chairman Elite Club (BM)</p></div>
+    <div class="kpi"><h3 id="eliteRMs">0</h3><p>Chairman Elite Club (RM)</p></div>
+  </div>
+
+  <div class="chart-box">
+    <h2 style="margin-bottom:16px;color:#e2e8f0">Revenue Trend (Daily)</h2>
+    <canvas id="trend"></canvas>
+    <div id="trendTip" class="tooltip"></div>
+  </div>
+
+  <div class="chart-box">
+    <h2 style="margin-bottom:16px;color:#e2e8f0">Sales by Region</h2>
+    <canvas id="region"></canvas>
+    <div id="regionTip" class="tooltip"></div>
+  </div>
+
+  <h2 class="section-title">Regional Manager Clubs & Rewards</h2>
+  <div class="chart-box">
+    <table id="rmTable">
+      <thead>
+        <tr>
+          <th>Region</th>
+          <th>Total Premium</th>
+          <th>Club</th>
+          <th>Reward Details</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </div>
+
+  <h2 class="section-title">Branch Manager Clubs & Rewards</h2>
+  <div class="chart-box">
+    <table id="branchTable">
+      <thead>
+        <tr>
+          <th>Branch</th>
+          <th>Region</th>
+          <th>Bank</th>
+          <th style="text-align:right">Sales</th>
+          <th>Club</th>
+          <th>Reward</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+const CSV = `5510,Gummaghatta,APGB,Anantapuramu,11/19/2025,36000
+5533,Eddulapalli,APGB,Anantapuramu,10/30/2025,36000
+5566,Veerapunayanipalli,APGB,Kadapa,9/25/2025,100000
+5567,Valluru,APGB,Kadapa,11/15/2025,25000
+5570,Korrapadu,APGB,Kadapa,9/20/2025,26900
+5571,PeddaPasupula,APGB,Kadapa,10/30/2025,20000
+5573,Vaimpalli,APGB,Kadapa,9/25/2025,40000
+5574,Kondapuram,APGB,Kadapa,9/26/2025,25000
+5575,Chintakommadinne,APGB,Kadapa,11/20/2025,20000
+5577,Ramanapalli,APGB,Kadapa,11/7/2025,15000
+5579,Mylavaram,APGB,Kadapa,10/23/2025,36000
+5581,Nallapureddypalli,APGB,Kadapa,9/30/2025,20000
+5582,Kamalapuram,APGB,Kadapa,9/26/2025,36000
+5583,Chilamakur,APGB,Kadapa,10/23/2025,36000
+5584,Chakrayapet,APGB,Kadapa,9/18/2025,50000
+5584,Chakrayapet,APGB,Kadapa,10/4/2025,50000
+5588,Kadapa-Mochampet,APGB,Kadapa,11/18/2025,50000
+5589,Yerraguntla,APGB,Kadapa,9/22/2025,36000
+5589,Yerraguntla,APGB,Kadapa,10/24/2025,25000
+5590,Alavalapadu,APGB,Kadapa,9/15/2025,40000
+5591,KothaNellore,APGB,Kadapa,10/30/2025,30537
+5595,Jammalamadugu,APGB,Kadapa,9/25/2025,51000
+5597,Kadapa-JayanagarColony,APGB,Kadapa,9/29/2025,36000
+5597,Kadapa-JayanagarColony,APGB,Kadapa,10/23/2025,35220
+5598,Simhadripuram,APGB,Kadapa,9/17/2025,50000
+5598,Simhadripuram,APGB,Kadapa,9/20/2025,50000
+5598,Simhadripuram,APGB,Kadapa,10/22/2025,100000
+5598,Simhadripuram,APGB,Kadapa,10/23/2025,100000
+5598,Simhadripuram,APGB,Kadapa,11/3/2025,50000
+5598,Simhadripuram,APGB,Kadapa,11/10/2025,50000
+5598,Simhadripuram,APGB,Kadapa,11/18/2025,200000
+5600,Chennur,APGB,Kadapa,11/3/2025,25000
+5601,Kadapa-PoliceLine,APGB,Kadapa,9/18/2025,100000
+5601,Kadapa-PoliceLine,APGB,Kadapa,10/3/2025,25000
+5602,Khajipet,APGB,Kadapa,9/22/2025,27051
+5602,Khajipet,APGB,Kadapa,10/7/2025,27297
+5603,Muddanur,APGB,Kadapa,9/19/2025,36000
+5605,Kadapa-Nesco,APGB,Kadapa,9/25/2025,40000
+5607,Gopavaram,APGB,Kadapa,9/18/2025,50000
+5609,Potladurti,APGB,Kadapa,9/25/2025,36000
+5610,Nandimandalam,APGB,Kadapa,10/24/2025,25000
+5612,Chapadu,APGB,Kadapa,9/29/2025,20000
+5614,Uruturu,APGB,Kadapa,9/11/2025,61000
+5615,Kadapa-RavindraNagar,APGB,Kadapa,10/7/2025,21951
+5616,Proddatur-GandhiRoad,APGB,Kadapa,9/25/2025,13259
+5620,"Kadapa-
+AmeenPeerDarga",APGB,Kadapa,9/29/2025,36000
+5621,"Jammalamadugu-
+NewMarketCentre",APGB,Kadapa,10/7/2025,36000
+5621,"Jammalamadugu-
+NewMarketCentre",APGB,Kadapa,10/8/2025,36000
+5623,Kadapa-Mariapuram,APGB,Kadapa,9/25/2025,50000
+5624,"Kamalapuram""X""Roads",APGB,Kadapa,11/5/2025,50000
+5626,Velindandla,APGB,Kadapa,9/25/2025,36000
+5627,Lepakshi,APGB,Kadiri,9/9/2025,36000
+5627,Lepakshi,APGB,Kadiri,10/7/2025,36000
+5627,Lepakshi,APGB,Kadiri,11/18/2025,70000
+5627,Lepakshi,APGB,Kadiri,11/24/2025,25000
+5628,Marala,APGB,Kadiri,9/16/2025,26000
+5632,Ramapuram,APGB,Kadiri,9/22/2025,13000
+5632,Ramapuram,APGB,Kadiri,11/14/2025,15000
+5633,Nallamada,APGB,Kadiri,9/30/2025,15000
+5633,Nallamada,APGB,Kadiri,11/6/2025,20000
+5634,Obuladevaracheruvu,APGB,Kadiri,9/20/2025,30000
+5635,Pedaballi,APGB,Kadiri,11/6/2025,15000
+5635,Pedaballi,APGB,Kadiri,11/14/2025,21000
+5638,Pamudurthy,APGB,Kadiri,9/20/2025,20000
+5639,Perur,APGB,Kadiri,9/20/2025,13000
+5640,N.S.Gate,APGB,Kadiri,9/22/2025,27078
+5641,Dharmavaram,APGB,Kadiri,9/22/2025,12000
+5641,Dharmavaram,APGB,Kadiri,11/3/2025,22704
+5641,Dharmavaram,APGB,Kadiri,11/13/2025,15000
+5642,KadiriMain,APGB,Kadiri,9/23/2025,20000
+5643,Kanumukkala,APGB,Kadiri,9/22/2025,15000
+5644,Puttaparthy,APGB,Kadiri,9/22/2025,27507
+5644,Puttaparthy,APGB,Kadiri,11/6/2025,27000
+5645,Nallagutlapalli,APGB,Kadiri,9/18/2025,25000
+5646,Talupula,APGB,Kadiri,9/20/2025,15000
+5648,Gorantla,APGB,Kadiri,11/24/2025,25000
+5649,Talamarla,APGB,Kadiri,9/19/2025,20000
+5649,Talamarla,APGB,Kadiri,10/8/2025,15000
+5651,Neelakantapuram,APGB,Kadiri,9/18/2025,50000
+5651,Neelakantapuram,APGB,Kadiri,9/22/2025,50000
+5651,Neelakantapuram,APGB,Kadiri,9/29/2025,50000
+5651,Neelakantapuram,APGB,Kadiri,11/1/2025,50000
+5651,Neelakantapuram,APGB,Kadiri,11/3/2025,100000
+5651,Neelakantapuram,APGB,Kadiri,11/14/2025,50000
+5652,Nallacheruvu,APGB,Kadiri,9/25/2025,15000
+5653,Hemavathi,APGB,Kadiri,9/19/2025,25000
+5653,Hemavathi,APGB,Kadiri,11/26/2025,72000
+5654,Bathalapalli,APGB,Kadiri,9/20/2025,23781
+5654,Bathalapalli,APGB,Kadiri,11/15/2025,15000
+5655,Dadithota,APGB,Kadiri,11/7/2025,26976
+5658,Kanaganipalli,APGB,Kadiri,9/17/2025,50000
+5658,Kanaganipalli,APGB,Kadiri,11/7/2025,15000
+5659,B.Kothapalli,APGB,Kadiri,9/23/2025,20000
+5661,Penukonda,APGB,Kadiri,11/6/2025,100000
+5664,Kothachervu,APGB,Kadiri,9/20/2025,15000
+5664,Kothachervu,APGB,Kadiri,10/6/2025,20000
+5664,Kothachervu,APGB,Kadiri,11/5/2025,27240
+5665,Agali,APGB,Kadiri,9/17/2025,36000
+5666,Mamillapalli,APGB,Kadiri,9/20/2025,60000
+5666,Mamillapalli,APGB,Kadiri,10/15/2025,13000
+5667,Rekkamanu,APGB,Kadiri,9/20/2025,13000
+5671,Chigicherla,APGB,Kadiri,9/19/2025,15000
+5672,Basavanahalli,APGB,Kadiri,9/20/2025,36000
+5673,Ratnagiri,APGB,Kadiri,9/22/2025,36000
+5673,Ratnagiri,APGB,Kadiri,9/25/2025,36000
+5673,Ratnagiri,APGB,Kadiri,11/14/2025,15000
+5674,Ramagiri,APGB,Kadiri,9/20/2025,13000
+5686,Parla,APGB,Kurnool,9/30/2025,35000
+5687,KurnoolMain,APGB,Kurnool,9/11/2025,50000
+5689,Nemakal,APGB,Kurnool,9/16/2025,20000
+5689,Nemakal,APGB,Kurnool,9/22/2025,100000
+5689,Nemakal,APGB,Kurnool,11/17/2025,25000
+5691,Devanakonda,APGB,Kurnool,9/20/2025,20000
+5691,Devanakonda,APGB,Kurnool,9/24/2025,60000
+5696,Gargeyapuram,APGB,Kurnool,9/20/2025,36000
+5697,Peravali,APGB,Kurnool,9/15/2025,50000
+5698,Yemmiganur,APGB,Kurnool,9/25/2025,20000
+5700,Kothakota,APGB,Kurnool,9/22/2025,60000
+5700,Kothakota,APGB,Kurnool,9/30/2025,30000
+5701,Veldurthy,APGB,Kurnool,9/10/2025,40000
+5701,Veldurthy,APGB,Kurnool,9/19/2025,20000
+5701,Veldurthy,APGB,Kurnool,9/30/2025,40000
+5703,Pathikonda,APGB,Kurnool,9/19/2025,25000
+5705,Hebbatam,APGB,Kurnool,9/11/2025,20000
+5706,Polakal,APGB,Kurnool,9/12/2025,40000
+5706,Polakal,APGB,Kurnool,9/23/2025,20000
+5706,Polakal,APGB,Kurnool,9/29/2025,40000
+5710,Urukunda,APGB,Kurnool,10/29/2025,70000
+5712,Badinehal,APGB,Kurnool,9/24/2025,20000
+5712,Badinehal,APGB,Kurnool,11/12/2025,25000
+5714,Kurnool-KrishnaNagar,APGB,Kurnool,9/24/2025,100000
+5717,Gudur,APGB,Kurnool,11/6/2025,11513
+5717,Gudur,APGB,Kurnool,11/10/2025,36000
+5718,Kosigi,APGB,Kurnool,9/12/2025,20000
+5718,Kosigi,APGB,Kurnool,11/24/2025,36000
+5719,Kurnool-Govt.GeneralHospital,APGB,Kurnool,9/30/2025,73462
+5720,Kurnool-Poolabazar,APGB,Kurnool,9/11/2025,100000
+5720,Kurnool-Poolabazar,APGB,Kurnool,9/26/2025,50000
+5723,Adoni-MosqueStreet,APGB,Kurnool,9/19/2025,20000
+5724,Yemmiganur-SivaCircle,APGB,Kurnool,9/26/2025,20000
+5725,Kurnool-RevenueColony,APGB,Kurnool,9/17/2025,50000
+5726,Kurnool-ZPOfficeComplex,APGB,Kurnool,9/12/2025,36000
+5728,P.Kotakonda,APGB,Kurnool,9/26/2025,36000
+5729,Chintakunta,APGB,Kurnool,10/30/2025,25000
+5733,Chityala,APGB,Kurnool,9/29/2025,40000
+5735,Kurnool-BabaBrindavanNagar,APGB,Kurnool,9/9/2025,36000
+5735,Kurnool-BabaBrindavanNagar,APGB,Kurnool,9/18/2025,36000
+5736,"Kurnool-
+KisanNagar",APGB,Kurnool,9/22/2025,36000
+5736,"Kurnool-
+KisanNagar",APGB,Kurnool,11/5/2025,50000
+5737,Kappatralla,APGB,Kurnool,9/15/2025,20000
+5737,Kappatralla,APGB,Kurnool,9/18/2025,60000
+5737,Kappatralla,APGB,Kurnool,9/22/2025,20000
+5739,Kurnool-BalajiNagar,APGB,Kurnool,9/8/2025,35000
+5741,Nagaladinne,APGB,Kurnool,9/24/2025,20000
+5745,ChinnaTekur,APGB,Kurnool,9/29/2025,36000
+5764,Kandukur-KanigiriRoad,APGB,Markapur,10/29/2025,30000
+5778,Darsi,APGB,Markapur,10/23/2025,20000
+5781,Marripudi,APGB,Markapur,11/19/2025,100000
+5782,Avulamanda,APGB,Markapur,11/15/2025,15000
+5793,Kotcherlakota,APGB,Markapur,11/21/2025,36000
+5796,Betamcherla,APGB,Nandyal,9/18/2025,125118
+5796,Betamcherla,APGB,Nandyal,9/23/2025,20000
+5796,Betamcherla,APGB,Nandyal,10/8/2025,108000
+5796,Betamcherla,APGB,Nandyal,10/23/2025,35000
+5796,Betamcherla,APGB,Nandyal,11/18/2025,40000
+5802,Kolimigundla,APGB,Nandyal,9/19/2025,100000
+5805,Gospadu,APGB,Nandyal,9/22/2025,32868
+5811,Dhone,APGB,Nandyal,11/4/2025,15000
+5816,NandyalMain,APGB,Nandyal,10/8/2025,50000
+5817,Thimmapuram,APGB,Nandyal,9/19/2025,36000
+5822,Nandikotkur,APGB,Nandyal,11/20/2025,36000
+5826,Allagadda,APGB,Nandyal,9/22/2025,20000
+5827,Nandyal-BalaJuniorCollege,APGB,Nandyal,9/20/2025,15000
+5827,Nandyal-BalaJuniorCollege,APGB,Nandyal,9/25/2025,36000
+5828,Velugodu,APGB,Nandyal,11/26/2025,21918
+5829,Nandyal-SPYReddyDegreeCollege,APGB,Nandyal,11/26/2025,20000
+5834,Akumalla,APGB,Nandyal,10/1/2025,56000
+5841,Owk,APGB,Nandyal,9/18/2025,36000
+5849,Ellavathula,APGB,Nandyal,11/18/2025,15000
+5911,Podalakur,APGB,Nellore,11/20/2025,40000
+5912,Kaluvoy,APGB,Nellore,11/12/2025,100000
+5919,Nellore-SMVBranch,APGB,Nellore,11/13/2025,20000
+5920,Nellore-MulumudiBusStand,APGB,Nellore,11/1/2025,10000
+5928,Kommi,APGB,Markapur,10/23/2025,20000
+5940,Tummalapenta,APGB,Nellore,11/15/2025,15000
+5954,Edumudi,APGB,Ongole,11/11/2025,20000
+5954,Edumudi,APGB,Ongole,11/21/2025,15000
+5970,Chirala,APGB,Ongole,11/14/2025,50000
+5974,Kothapeta,APGB,Ongole,10/6/2025,40000
+5979,Chinaganjam,APGB,Ongole,11/12/2025,15000
+5984,ChiralaRural(Perala),APGB,Ongole,10/30/2025,15000
+5998,Naguluppalapadu,APGB,Ongole,11/6/2025,36000
+6001,Veeraballi,APGB,Rajampeta,10/30/2025,20262
+6002,Porumamilla,APGB,Rajampeta,11/5/2025,50000
+6007,Nandalur,APGB,Rajampeta,9/25/2025,50000
+6007,Nandalur,APGB,Rajampeta,9/26/2025,200000
+6009,Kanagudur,APGB,Rajampeta,9/19/2025,36000
+6009,Kanagudur,APGB,Rajampeta,10/1/2025,50000
+6009,Kanagudur,APGB,Rajampeta,11/1/2025,50000
+6022,Rayachoty,APGB,Rajampeta,9/18/2025,36000
+6024,Settigunta,APGB,Rajampeta,9/8/2025,21759
+6024,Settigunta,APGB,Rajampeta,10/29/2025,20000
+6025,B.Kodur,APGB,Rajampeta,10/23/2025,20000
+6032,Pullampet,APGB,Rajampeta,9/15/2025,100000
+6032,Pullampet,APGB,Rajampeta,9/22/2025,100000
+6038,Mangampeta,APGB,Rajampeta,9/19/2025,36000
+6038,Mangampeta,APGB,Rajampeta,10/29/2025,50000
+6038,Mangampeta,APGB,Rajampeta,11/11/2025,50000
+6038,Mangampeta,APGB,Rajampeta,11/13/2025,50000
+6038,Mangampeta,APGB,Rajampeta,11/15/2025,50000
+6038,Mangampeta,APGB,Rajampeta,11/25/2025,36000
+6049,Rayachoty-Kothapeta,APGB,Rajampeta,11/4/2025,100000
+6109,Anakapalle,APGB,Anakapalli,10/31/2025,130000
+6109,Anakapalle,APGB,Anakapalli,11/13/2025,53000
+6110,Arakuvaley,APGB,Anakapalli,10/30/2025,36000
+6111,Atchutapuram,APGB,Anakapalli,11/26/2025,50000
+6112,Bhogapuram,APGB,Anakapalli,10/30/2025,20000
+6119,K.D.Peta,APGB,Anakapalli,11/10/2025,20000
+6122,Kothakota,APGB,Anakapalli,10/18/2025,20000
+6133,Paderu,APGB,Anakapalli,10/30/2025,47000
+6142,Satyavaram,APGB,Anakapalli,11/6/2025,25000
+6142,Satyavaram,APGB,Anakapalli,11/12/2025,25000
+6145,Vempadu,APGB,Anakapalli,10/18/2025,20000
+6145,Vempadu,APGB,Anakapalli,11/5/2025,20000
+6146,Vemulapudi,APGB,Anakapalli,11/3/2025,100000
+6146,Vemulapudi,APGB,Anakapalli,11/5/2025,100000
+6151,Chowduwada,APGB,Anakapalli,11/12/2025,50000
+6155,K.Kotapadu,APGB,Anakapalli,10/18/2025,65000
+6156,Madugula,APGB,Anakapalli,10/29/2025,400000
+6156,Madugula,APGB,Anakapalli,10/30/2025,110000
+6156,Madugula,APGB,Anakapalli,10/31/2025,120000
+6156,Madugula,APGB,Anakapalli,11/13/2025,22000
+6160,Bathili,APGB,Parvathipuram,9/24/2025,100000
+6160,Bathili,APGB,Parvathipuram,9/30/2025,25000
+6160,Bathili,APGB,Parvathipuram,10/6/2025,20000
+6160,Bathili,APGB,Parvathipuram,10/22/2025,50000
+6160,Bathili,APGB,Parvathipuram,11/17/2025,36000
+6162,Bhamini,APGB,Parvathipuram,11/18/2025,36000
+6163,Burja,APGB,Parvathipuram,9/29/2025,36000
+6163,Burja,APGB,Parvathipuram,10/29/2025,100000
+6164,Chinabhogila,APGB,Parvathipuram,9/22/2025,50000
+6164,Chinabhogila,APGB,Parvathipuram,11/5/2025,20000
+6164,Chinabhogila,APGB,Parvathipuram,11/13/2025,36000
+6167,Galavalli,APGB,Parvathipuram,10/23/2025,25000
+6171,Guttavalli,APGB,Parvathipuram,10/22/2025,28000
+6174,Kollivalasa(BurjaMandal),APGB,Parvathipuram,10/18/2025,50000
+6175,Komarada,APGB,Parvathipuram,9/30/2025,50000
+6176,Korada,APGB,Parvathipuram,9/25/2025,60000
+6176,Korada,APGB,Parvathipuram,9/30/2025,50000
+6179,Kurigam,APGB,Parvathipuram,10/8/2025,86000
+6179,Kurigam,APGB,Parvathipuram,10/29/2025,36000
+6179,Kurigam,APGB,Parvathipuram,11/19/2025,36000
+6181,L.N.Peta,APGB,Parvathipuram,9/19/2025,50000
+6181,L.N.Peta,APGB,Parvathipuram,10/7/2025,36000
+6181,L.N.Peta,APGB,Parvathipuram,10/8/2025,100000
+6182,M.Singapuram,APGB,Parvathipuram,11/13/2025,36000
+6187,Parvatipuram,APGB,Parvathipuram,9/4/2025,25000
+6188,Pathapatnam,APGB,Parvathipuram,9/26/2025,50000
+6190,Pinapenki,APGB,Parvathipuram,10/9/2025,50000
+6191,Piridi,APGB,Parvathipuram,9/22/2025,100000
+6191,Piridi,APGB,Parvathipuram,11/5/2025,100000
+6192,Pogiri,APGB,Parvathipuram,11/1/2025,36000
+6192,Pogiri,APGB,Parvathipuram,11/5/2025,36000
+6193,R.Amadalavalasa,APGB,Parvathipuram,10/3/2025,50000
+6194,Rajam,APGB,Parvathipuram,9/16/2025,100000
+6194,Rajam,APGB,Parvathipuram,10/23/2025,160000
+6194,Rajam,APGB,Parvathipuram,11/5/2025,36000
+6197,Seethampeta,APGB,Parvathipuram,9/12/2025,15000
+6199,Terlam,APGB,Parvathipuram,10/18/2025,72000
+6199,Terlam,APGB,Parvathipuram,11/15/2025,36000
+6200,Thotapalli,APGB,Parvathipuram,9/23/2025,60000
+6203,Akkulapeta,APGB,Parvathipuram,10/17/2025,50000
+6203,Akkulapeta,APGB,Parvathipuram,10/18/2025,28701
+6203,Akkulapeta,APGB,Parvathipuram,11/5/2025,36000
+6204,Arasada,APGB,Parvathipuram,9/12/2025,50000
+6204,Arasada,APGB,Parvathipuram,9/17/2025,100000
+6204,Arasada,APGB,Parvathipuram,10/23/2025,100000
+6208,Purushottapuram,APGB,Parvathipuram,10/30/2025,20000
+6209,Santhakaviti,APGB,Parvathipuram,10/22/2025,25000
+6210,Saravakota,APGB,Parvathipuram,9/20/2025,20000
+6210,Saravakota,APGB,Parvathipuram,10/3/2025,15000
+6211,SMPuram,APGB,Parvathipuram,10/23/2025,50000
+6214,Unukuru,APGB,Parvathipuram,9/16/2025,100000
+6215,Vandrangi,APGB,Parvathipuram,9/30/2025,30000
+6215,Vandrangi,APGB,Parvathipuram,10/18/2025,108000
+6216,Alikam,APGB,Srikakulam,11/13/2025,50000
+6217,Arasavilli,APGB,Srikakulam,11/21/2025,20000
+6219,Baruva,APGB,Srikakulam,11/21/2025,20000
+6220,Borivanka,APGB,Srikakulam,10/23/2025,20000
+6220,Borivanka,APGB,Srikakulam,10/31/2025,20000
+6220,Borivanka,APGB,Srikakulam,11/5/2025,20000
+6220,Borivanka,APGB,Srikakulam,11/21/2025,28000
+6220,Borivanka,APGB,Srikakulam,11/26/2025,29000
+6221,BORUBHADRA,APGB,Srikakulam,11/5/2025,36000
+6221,BORUBHADRA,APGB,Srikakulam,11/6/2025,25000
+6222,Calingapatnam,APGB,Srikakulam,9/20/2025,22266
+6222,Calingapatnam,APGB,Srikakulam,11/5/2025,13000
+6222,Calingapatnam,APGB,Srikakulam,11/21/2025,20000
+6223,Chilukapalem,APGB,Srikakulam,10/14/2025,20000
+6223,Chilukapalem,APGB,Srikakulam,10/15/2025,20000
+6225,GUJARATHIPETA,APGB,Srikakulam,10/18/2025,20000
+6227,HBColony,APGB,Srikakulam,11/21/2025,20000
+6228,Ichapuram,APGB,Srikakulam,11/18/2025,20000
+6228,Ichapuram,APGB,Srikakulam,11/21/2025,50000
+6228,Ichapuram,APGB,Srikakulam,11/24/2025,27000
+6229,Jarjangi,APGB,Srikakulam,11/13/2025,36000
+6230,KALIVARAM,APGB,Srikakulam,11/6/2025,20000
+6230,KALIVARAM,APGB,Srikakulam,11/13/2025,30000
+6232,Kanchili,APGB,Srikakulam,10/21/2025,66000
+6232,Kanchili,APGB,Srikakulam,10/22/2025,50000
+6235,Kaviti,APGB,Srikakulam,10/29/2025,20000
+6235,Kaviti,APGB,Srikakulam,11/26/2025,28701
+6236,Korlam,APGB,Srikakulam,11/13/2025,27000
+6237,Kothapalli,APGB,Srikakulam,11/21/2025,36000
+6241,Mamidipally,APGB,Srikakulam,9/15/2025,20000
+6242,Mandasa,APGB,Srikakulam,10/29/2025,20000
+6242,Mandasa,APGB,Srikakulam,10/31/2025,27000
+6243,Mattamsariapalli,APGB,Srikakulam,10/30/2025,22000
+6244,MUDDADA,APGB,Srikakulam,11/13/2025,20000
+6246,Nandigam,APGB,Srikakulam,11/26/2025,20000
+6253,Pallisaradhi,APGB,Srikakulam,11/13/2025,50000
+6255,Pinnintipeta,APGB,Srikakulam,10/18/2025,20000
+6255,Pinnintipeta,APGB,Srikakulam,11/5/2025,20000
+6255,Pinnintipeta,APGB,Srikakulam,11/21/2025,20000
+6256,Polaki,APGB,Srikakulam,10/18/2025,36000
+6256,Polaki,APGB,Srikakulam,11/6/2025,100000
+6257,Ponnada,APGB,Srikakulam,10/9/2025,50000
+6258,Priyaagraharam,APGB,Srikakulam,10/18/2025,50000
+6258,Priyaagraharam,APGB,Srikakulam,11/21/2025,36000
+6259,Pundi,APGB,Srikakulam,11/6/2025,50000
+6259,Pundi,APGB,Srikakulam,11/15/2025,70000
+6260,Pydibheemavaram,APGB,Srikakulam,11/14/2025,27000
+6260,Pydibheemavaram,APGB,Srikakulam,11/15/2025,25000
+6261,Ragolu,APGB,Srikakulam,11/13/2025,100000
+6262,Ranasthalam,APGB,Srikakulam,11/6/2025,20000
+6263,Santabommali,APGB,Srikakulam,10/30/2025,20000
+6263,Santabommali,APGB,Srikakulam,11/13/2025,35220
+6263,Santabommali,APGB,Srikakulam,11/18/2025,36000
+6265,Srikakulam,APGB,Srikakulam,10/29/2025,100000
+6267,Tadivalasa,APGB,Srikakulam,10/29/2025,20000
+6270,Tholapi,APGB,Srikakulam,11/13/2025,20000
+6271,Urlam,APGB,Srikakulam,10/29/2025,50000
+6272,Vajrapukotturu,APGB,Srikakulam,9/26/2025,50000
+6272,Vajrapukotturu,APGB,Srikakulam,10/18/2025,26000
+6272,Vajrapukotturu,APGB,Srikakulam,10/23/2025,36000
+6272,Vajrapukotturu,APGB,Srikakulam,11/5/2025,50000
+6274,Akkayyapalem,APGB,Visakhapatnam,9/26/2025,60000
+6274,Akkayyapalem,APGB,Visakhapatnam,10/29/2025,25000
+6276,Arilova,APGB,Visakhapatnam,9/12/2025,50000
+6276,Arilova,APGB,Visakhapatnam,10/8/2025,100000
+6276,Arilova,APGB,Visakhapatnam,11/21/2025,36000
+6278,CHINAGANTYADA,APGB,Visakhapatnam,9/12/2025,100000
+6284,Kailasapuram,APGB,Visakhapatnam,11/14/2025,36000
+6286,Kommadi,APGB,Visakhapatnam,10/3/2025,100000
+6287,Kurmannapalem,APGB,Visakhapatnam,9/30/2025,50000
+6291,Muralinagar,APGB,Visakhapatnam,11/13/2025,20000
+6294,Nathayyapalem,APGB,Visakhapatnam,10/14/2025,35000
+6294,Nathayyapalem,APGB,Visakhapatnam,11/13/2025,300000
+6296,Parawada,APGB,Visakhapatnam,9/18/2025,100000
+6305,Sujathanagar,APGB,Visakhapatnam,9/25/2025,34000
+6315,Padmanabham,APGB,Visakhapatnam,11/5/2025,36000
+6316,Sabbavaram,APGB,Visakhapatnam,9/1/2025,30000
+6316,Sabbavaram,APGB,Visakhapatnam,9/8/2025,100000
+6318,Sontyam,APGB,Visakhapatnam,11/17/2025,30000
+6320,Tallavalasa,APGB,Visakhapatnam,9/12/2025,50000
+6323,Arikathota,APGB,Vizianagaram,9/12/2025,25000
+6324,Badangi,APGB,Vizianagaram,9/24/2025,50000
+6324,Badangi,APGB,Vizianagaram,10/23/2025,50000
+6325,Bobbili,APGB,Vizianagaram,11/26/2025,50000
+6327,M.Mamidipalli,APGB,Vizianagaram,9/15/2025,20000
+6327,M.Mamidipalli,APGB,Vizianagaram,9/20/2025,36000
+6327,M.Mamidipalli,APGB,Vizianagaram,11/6/2025,50000
+6334,R.B.Puram,APGB,Vizianagaram,9/25/2025,25000
+6334,R.B.Puram,APGB,Vizianagaram,11/24/2025,20000
+6335,Salur,APGB,Vizianagaram,11/20/2025,36000
+6343,Cheepurupalli,APGB,Vizianagaram,9/18/2025,50000
+6343,Cheepurupalli,APGB,Vizianagaram,11/19/2025,49000
+6344,Chintalavalasa,APGB,Vizianagaram,11/13/2025,49000
+6344,Chintalavalasa,APGB,Vizianagaram,11/14/2025,36000
+6347,DharmapuriR,APGB,Vizianagaram,11/14/2025,27027
+6349,Gantyada,APGB,Vizianagaram,9/25/2025,20000
+6350,Garbham,APGB,Vizianagaram,11/24/2025,100000
+6351,Garividi,APGB,Vizianagaram,11/19/2025,49000
+6353,GURLA,APGB,Vizianagaram,10/9/2025,50000
+6359,KothaAgraharam,APGB,Vizianagaram,9/16/2025,72000
+6360,Kothapeta,APGB,Vizianagaram,11/6/2025,36000
+6364,Merakamudidam,APGB,Vizianagaram,9/18/2025,50000
+6368,Pedamajjipalem,APGB,Vizianagaram,11/5/2025,50000
+6368,Pedamajjipalem,APGB,Vizianagaram,11/21/2025,50000
+6369,Pedavemali,APGB,Vizianagaram,10/23/2025,36000
+6369,Pedavemali,APGB,Vizianagaram,11/11/2025,36000
+6369,Pedavemali,APGB,Vizianagaram,11/13/2025,36000
+6373,Vedullavalasa,APGB,Vizianagaram,9/22/2025,50000
+6373,Vedullavalasa,APGB,Vizianagaram,9/30/2025,50000
+6373,Vedullavalasa,APGB,Vizianagaram,10/29/2025,100000
+6373,Vedullavalasa,APGB,Vizianagaram,11/15/2025,50000
+6374,Vizianagaram,APGB,Vizianagaram,10/16/2025,60000
+6374,Vizianagaram,APGB,Vizianagaram,11/12/2025,100000
+6374,Vizianagaram,APGB,Vizianagaram,11/14/2025,100000
+6375,KLPURAM,APGB,Vizianagaram,11/25/2025,50000
+6377,VzmContonment,APGB,Vizianagaram,9/20/2025,52541
+6404,GREAMSPET,APGB,CHITTOOR,10/30/2025,22538
+6412,MOGILI,APGB,CHITTOOR,11/1/2025,20000
+6412,MOGILI,APGB,CHITTOOR,11/15/2025,20000
+6417,PALAMANER,APGB,CHITTOOR,9/4/2025,12000
+6417,PALAMANER,APGB,CHITTOOR,10/18/2025,34000
+6417,PALAMANER,APGB,CHITTOOR,10/30/2025,15000
+6417,PALAMANER,APGB,CHITTOOR,11/14/2025,16000
+6417,PALAMANER,APGB,CHITTOOR,11/15/2025,40000
+6417,PALAMANER,APGB,CHITTOOR,11/17/2025,40000
+6417,PALAMANER,APGB,CHITTOOR,11/24/2025,16000
+6424,UGRANAMPALLE,APGB,CHITTOOR,9/4/2025,53332
+6424,UGRANAMPALLE,APGB,CHITTOOR,9/10/2025,40450
+6440,"OLDPET,PALAMANER",APGB,CHITTOOR,10/22/2025,30000
+6453,BANTUMILLI,APGB,GUDIVADA,11/14/2025,50000
+6455,EDUPUGALLUGOSALA,APGB,GUDIVADA,10/30/2025,12000
+6455,EDUPUGALLUGOSALA,APGB,GUDIVADA,11/14/2025,6000
+6456,GUDIVADA,APGB,GUDIVADA,9/9/2025,6000
+6456,GUDIVADA,APGB,GUDIVADA,10/8/2025,6000
+6456,GUDIVADA,APGB,GUDIVADA,11/7/2025,6000
+6456,GUDIVADA,APGB,GUDIVADA,11/24/2025,36000
+6458,KAIKALURU,APGB,GUDIVADA,11/21/2025,6000
+6461,LAKSHMIPURAM,APGB,GUDIVADA,9/1/2025,6000
+6461,LAKSHMIPURAM,APGB,GUDIVADA,9/2/2025,30000
+6461,LAKSHMIPURAM,APGB,GUDIVADA,9/3/2025,68431
+6461,LAKSHMIPURAM,APGB,GUDIVADA,9/8/2025,12000
+6461,LAKSHMIPURAM,APGB,GUDIVADA,9/10/2025,10000
+6461,LAKSHMIPURAM,APGB,GUDIVADA,9/11/2025,60000
+6461,LAKSHMIPURAM,APGB,GUDIVADA,9/23/2025,6000
+6461,LAKSHMIPURAM,APGB,GUDIVADA,11/14/2025,18000
+6461,LAKSHMIPURAM,APGB,GUDIVADA,11/15/2025,36000
+6462,LINGALA,APGB,GUDIVADA,10/1/2025,18000
+6464,MANTHENA,APGB,GUDIVADA,9/24/2025,24000
+6464,MANTHENA,APGB,GUDIVADA,10/3/2025,6000
+6464,MANTHENA,APGB,GUDIVADA,11/14/2025,6000
+6466,NEPPALLI,APGB,GUDIVADA,11/5/2025,30000
+6466,NEPPALLI,APGB,GUDIVADA,11/14/2025,12000
+6466,NEPPALLI,APGB,GUDIVADA,11/15/2025,6000
+6467,NUZIVEEDU,APGB,GUDIVADA,10/15/2025,11671
+6467,NUZIVEEDU,APGB,GUDIVADA,11/1/2025,20324
+6470,RAMANAKKAPET,APGB,GUDIVADA,9/11/2025,15000
+6470,RAMANAKKAPET,APGB,GUDIVADA,10/6/2025,10000
+6470,RAMANAKKAPET,APGB,GUDIVADA,11/18/2025,10000
+6471,TADIGADAPA,APGB,GUDIVADA,9/19/2025,13620
+6471,TADIGADAPA,APGB,GUDIVADA,10/22/2025,6000
+6472,VEERAPANENIGUDEM,APGB,GUDIVADA,11/14/2025,10000
+6474,VUYYUR,APGB,GUDIVADA,9/6/2025,12000
+6474,VUYYUR,APGB,GUDIVADA,9/11/2025,42000
+6474,VUYYUR,APGB,GUDIVADA,11/1/2025,42000
+6474,VUYYUR,APGB,GUDIVADA,11/6/2025,16000
+6474,VUYYUR,APGB,GUDIVADA,11/13/2025,6000
+6476,KALIDINDI,APGB,GUDIVADA,9/10/2025,6000
+6476,KALIDINDI,APGB,GUDIVADA,10/6/2025,12000
+6476,KALIDINDI,APGB,GUDIVADA,11/5/2025,72000
+6476,KALIDINDI,APGB,GUDIVADA,11/13/2025,12000
+6476,KALIDINDI,APGB,GUDIVADA,11/17/2025,42000
+6476,KALIDINDI,APGB,GUDIVADA,11/21/2025,36000
+6477,KANKIPADU,APGB,GUDIVADA,11/19/2025,15000
+6480,AVANIGADDA,APGB,GUDIVADA,10/23/2025,50000
+6480,AVANIGADDA,APGB,GUDIVADA,10/30/2025,10000
+6480,AVANIGADDA,APGB,GUDIVADA,10/31/2025,10000
+6480,AVANIGADDA,APGB,GUDIVADA,11/1/2025,30000
+6480,AVANIGADDA,APGB,GUDIVADA,11/6/2025,10000
+6480,AVANIGADDA,APGB,GUDIVADA,11/15/2025,50000
+6482,Agiripalli,APGB,GUDIVADA,9/23/2025,91000
+6482,Agiripalli,APGB,GUDIVADA,10/9/2025,12000
+6484,CHATRAI,APGB,GUDIVADA,11/24/2025,8743
+6488,MANDAVALLI,APGB,GUDIVADA,11/13/2025,6000
+6489,MUSUNURU,APGB,GUDIVADA,9/26/2025,60000
+6489,MUSUNURU,APGB,GUDIVADA,11/13/2025,6000
+6489,MUSUNURU,APGB,GUDIVADA,11/14/2025,10000
+6489,MUSUNURU,APGB,GUDIVADA,11/25/2025,8238
+6492,GHANTASALA,APGB,GUDIVADA,10/30/2025,6000
+6492,GHANTASALA,APGB,GUDIVADA,11/14/2025,18000
+6493,MAANIKONDA,APGB,GUDIVADA,11/3/2025,6000
+6502,CHOWDEPALLE,APGB,MADANAPALLE,10/23/2025,8470
+6509,MADANAPALLE,APGB,MADANAPALLE,10/22/2025,15000
+6510,MAHAL,APGB,MADANAPALLE,10/23/2025,10000
+6513,PATHIKONDA,APGB,MADANAPALLE,9/9/2025,10000
+6513,PATHIKONDA,APGB,MADANAPALLE,10/30/2025,10000
+6520,TARIGONDA,APGB,MADANAPALLE,10/23/2025,20000
+6524,GOLLAPALLE,APGB,MADANAPALLE,10/23/2025,24000
+6525,GKOTHAPALLE,APGB,MADANAPALLE,10/23/2025,6000
+6531,ESWARAMMACOLONY,APGB,MADANAPALLE,9/10/2025,54270
+6531,ESWARAMMACOLONY,APGB,MADANAPALLE,9/11/2025,6000
+6531,ESWARAMMACOLONY,APGB,MADANAPALLE,9/18/2025,100000
+6531,ESWARAMMACOLONY,APGB,MADANAPALLE,10/4/2025,60810
+6531,ESWARAMMACOLONY,APGB,MADANAPALLE,10/14/2025,49000
+6531,ESWARAMMACOLONY,APGB,MADANAPALLE,10/23/2025,134810
+6531,ESWARAMMACOLONY,APGB,MADANAPALLE,11/6/2025,50000
+6531,ESWARAMMACOLONY,APGB,MADANAPALLE,11/15/2025,10000
+6532,VELIGALLU,APGB,MADANAPALLE,10/23/2025,12000
+6536,DODDIPALLI,APGB,MADANAPALLE,10/23/2025,13083
+6540,KONDAMARIPALLE,APGB,MADANAPALLE,11/15/2025,20000
+6540,KONDAMARIPALLE,APGB,MADANAPALLE,11/25/2025,32548
+6541,Chintaparthi,APGB,MADANAPALLE,10/23/2025,12000
+6545,BATTAMDODDI,APGB,MADANAPALLE,9/8/2025,6000
+6545,BATTAMDODDI,APGB,MADANAPALLE,10/30/2025,6000
+6545,BATTAMDODDI,APGB,MADANAPALLE,11/13/2025,6000
+6546,A.RANGAMPET,APGB,TIRUPATHI,10/1/2025,6000
+6546,A.RANGAMPET,APGB,TIRUPATHI,10/23/2025,6000
+6548,DASUKUPPAM,APGB,TIRUPATHI,10/23/2025,6000
+6549,EGUVAVEEDHI,APGB,TIRUPATHI,10/18/2025,10000
+6550,KATHERAPALLE,APGB,TIRUPATHI,9/30/2025,6000
+6550,KATHERAPALLE,APGB,TIRUPATHI,10/23/2025,6000
+6550,KATHERAPALLE,APGB,TIRUPATHI,10/29/2025,10000
+6551,KORLAGUNTA,APGB,TIRUPATHI,9/30/2025,41406
+6556,NAGARI,APGB,TIRUPATHI,9/30/2025,10000
+6559,PALAMANGALAM,APGB,TIRUPATHI,10/30/2025,12000
+6560,PALLAM,APGB,TIRUPATHI,10/23/2025,5364
+6561,PAPANAIDUPET,APGB,TIRUPATHI,10/30/2025,36000
+6562,PUTTUR,APGB,TIRUPATHI,9/6/2025,16000
+6562,PUTTUR,APGB,TIRUPATHI,9/8/2025,6000
+6562,PUTTUR,APGB,TIRUPATHI,9/11/2025,10000
+6562,PUTTUR,APGB,TIRUPATHI,11/5/2025,6000
+6563,PRAKASAMROAD,APGB,TIRUPATHI,10/23/2025,15000
+6570,THIRUPATHI,APGB,TIRUPATHI,10/30/2025,50000
+6572,VIJAYAPURAM,APGB,TIRUPATHI,10/23/2025,10000
+6578,YERPEDU,APGB,TIRUPATHI,10/29/2025,15165
+6579,NARAYANAVANAM,APGB,TIRUPATHI,11/12/2025,12000
+6580,NERABYLU,APGB,TIRUPATHI,10/29/2025,10000
+6583,TIRUCHANOOR,APGB,TIRUPATHI,10/23/2025,23864
+6586,MANGALAM,APGB,TIRUPATHI,9/30/2025,10000
+6588,"CHENNAIROAD,PUTTUR",APGB,TIRUPATHI,11/10/2025,50000
+6589,PANAGAL,APGB,TIRUPATHI,10/30/2025,10000
+6592,TIRUMALA,APGB,TIRUPATHI,9/30/2025,51408
+6592,TIRUMALA,APGB,TIRUPATHI,10/22/2025,100000
+6593,PUDIPATLA,APGB,TIRUPATHI,10/23/2025,6000
+6593,PUDIPATLA,APGB,TIRUPATHI,10/29/2025,10000
+6594,PACHIKAPALLAM,APGB,TIRUPATHI,10/14/2025,6135
+6594,PACHIKAPALLAM,APGB,TIRUPATHI,10/23/2025,10000
+6599,KANNEVEEDU,APGB,VIJAYAWADA,11/10/2025,8250
+6600,KOTHAPETA,APGB,VIJAYAWADA,11/10/2025,6000
+6600,KOTHAPETA,APGB,VIJAYAWADA,11/25/2025,20653
+6601,MULAPADU,APGB,VIJAYAWADA,10/3/2025,6000
+6601,MULAPADU,APGB,VIJAYAWADA,11/10/2025,10000
+6601,MULAPADU,APGB,VIJAYAWADA,11/21/2025,15000
+6605,NANDIGAMA,APGB,VIJAYAWADA,9/1/2025,30000
+6609,POLAMPALLE,APGB,VIJAYAWADA,11/5/2025,10000
+6615,VELLANKI,APGB,VIJAYAWADA,10/24/2025,100000
+6623,KANCHIKACHERLA,APGB,VIJAYAWADA,9/6/2025,6000
+6626,VISSANNAPETA,APGB,VIJAYAWADA,11/19/2025,10000
+6627,PENUGANCHIPROLU,APGB,VIJAYAWADA,10/27/2025,8400
+6628,SATYANARAYANAPURAM,APGB,VIJAYAWADA,10/23/2025,64594
+6630,AJITHSINGHNAGAR,APGB,VIJAYAWADA,9/1/2025,43890
+6630,AJITHSINGHNAGAR,APGB,VIJAYAWADA,9/8/2025,126000
+6630,AJITHSINGHNAGAR,APGB,VIJAYAWADA,9/11/2025,54000
+6635,JAKKAMPUDI,APGB,VIJAYAWADA,11/3/2025,80201
+6635,JAKKAMPUDI,APGB,VIJAYAWADA,11/15/2025,44493
+6635,JAKKAMPUDI,APGB,VIJAYAWADA,11/17/2025,8422
+6635,JAKKAMPUDI,APGB,VIJAYAWADA,11/18/2025,16756
+6638,NAWABPET,APGB,VIJAYAWADA,11/1/2025,6000
+6643,AYYAPPANAGAR,APGB,VIJAYAWADA,9/25/2025,20000
+7001,Tenali,APGB,Guntur,10/27/2025,20000
+7001,Tenali,APGB,Guntur,11/11/2025,10000
+7005,Savalyapuram,APGB,Narasaraopet,9/18/2025,20000
+7005,Savalyapuram,APGB,Narasaraopet,9/23/2025,23000
+7005,Savalyapuram,APGB,Narasaraopet,9/30/2025,10000
+7005,Savalyapuram,APGB,Narasaraopet,10/18/2025,10000
+7005,Savalyapuram,APGB,Narasaraopet,10/22/2025,10000
+7005,Savalyapuram,APGB,Narasaraopet,10/30/2025,50000
+7005,Savalyapuram,APGB,Narasaraopet,11/1/2025,15000
+7005,Savalyapuram,APGB,Narasaraopet,11/21/2025,15000
+7006,Yallamanda,APGB,Narasaraopet,10/23/2025,26000
+7007,Zulakallu,APGB,Narasaraopet,10/17/2025,50000
+7008,Kotcherla,APGB,Narasaraopet,9/29/2025,15000
+7008,Kotcherla,APGB,Narasaraopet,10/14/2025,50013
+7008,Kotcherla,APGB,Narasaraopet,11/11/2025,30000
+7008,Kotcherla,APGB,Narasaraopet,11/13/2025,15000
+7009,Komerapudi,APGB,Narasaraopet,9/30/2025,51000
+7009,Komerapudi,APGB,Narasaraopet,10/8/2025,51000
+7009,Komerapudi,APGB,Narasaraopet,10/15/2025,52663
+7009,Komerapudi,APGB,Narasaraopet,11/17/2025,35939
+7009,Komerapudi,APGB,Narasaraopet,11/21/2025,10000
+7009,Komerapudi,APGB,Narasaraopet,11/24/2025,8456
+7010,Etukuru,APGB,Guntur,9/1/2025,30000
+7011,Penumaka,APGB,Guntur,10/14/2025,25674
+7011,Penumaka,APGB,Guntur,11/20/2025,6000
+7014,Sirigiripadu,APGB,Narasaraopet,10/6/2025,7000
+7016,Vatticherukuru,APGB,Guntur,9/8/2025,50000
+7016,Vatticherukuru,APGB,Guntur,10/10/2025,50000
+7019,Oppicherla,APGB,Narasaraopet,9/2/2025,10000
+7019,Oppicherla,APGB,Narasaraopet,9/22/2025,15000
+7019,Oppicherla,APGB,Narasaraopet,10/7/2025,15000
+7019,Oppicherla,APGB,Narasaraopet,10/14/2025,12000
+7019,Oppicherla,APGB,Narasaraopet,10/22/2025,30000
+7021,Murikipudi,APGB,Narasaraopet,9/11/2025,15000
+7021,Murikipudi,APGB,Narasaraopet,9/30/2025,15000
+7021,Murikipudi,APGB,Narasaraopet,10/22/2025,26852
+7021,Murikipudi,APGB,Narasaraopet,10/23/2025,140000
+7021,Murikipudi,APGB,Narasaraopet,10/27/2025,20000
+7021,Murikipudi,APGB,Narasaraopet,11/5/2025,55000
+7022,Narasaraopet,APGB,Narasaraopet,9/16/2025,25000
+7023,Dachepalli,APGB,Narasaraopet,9/2/2025,28000
+7023,Dachepalli,APGB,Narasaraopet,9/18/2025,25000
+7023,Dachepalli,APGB,Narasaraopet,9/29/2025,10000
+7023,Dachepalli,APGB,Narasaraopet,10/22/2025,20000
+7023,Dachepalli,APGB,Narasaraopet,10/23/2025,95640
+7023,Dachepalli,APGB,Narasaraopet,11/24/2025,12000
+7024,Yanamadala,APGB,Guntur,9/16/2025,15000
+7024,Yanamadala,APGB,Guntur,10/23/2025,8480
+7024,Yanamadala,APGB,Guntur,10/27/2025,7050
+7025,Pedaparimi,APGB,Guntur,10/23/2025,65954
+7026,Dodleru,APGB,Narasaraopet,9/8/2025,12000
+7026,Dodleru,APGB,Narasaraopet,10/15/2025,15000
+7026,Dodleru,APGB,Narasaraopet,10/22/2025,15000
+7026,Dodleru,APGB,Narasaraopet,10/30/2025,100000
+7027,Solasa,APGB,Narasaraopet,9/22/2025,15000
+7027,Solasa,APGB,Narasaraopet,10/22/2025,40000
+7028,Mulakaluru,APGB,Narasaraopet,9/30/2025,20000
+7028,Mulakaluru,APGB,Narasaraopet,10/7/2025,20000
+7029,Kunkalagunta,APGB,Narasaraopet,9/6/2025,20000
+7029,Kunkalagunta,APGB,Narasaraopet,9/10/2025,10450
+7029,Kunkalagunta,APGB,Narasaraopet,9/11/2025,10000
+7029,Kunkalagunta,APGB,Narasaraopet,9/17/2025,20000
+7029,Kunkalagunta,APGB,Narasaraopet,9/20/2025,20000
+7029,Kunkalagunta,APGB,Narasaraopet,9/25/2025,20000
+7029,Kunkalagunta,APGB,Narasaraopet,9/26/2025,10000
+7029,Kunkalagunta,APGB,Narasaraopet,10/1/2025,20000
+7029,Kunkalagunta,APGB,Narasaraopet,10/9/2025,20000
+7029,Kunkalagunta,APGB,Narasaraopet,10/17/2025,10000
+7029,Kunkalagunta,APGB,Narasaraopet,10/24/2025,10000
+7029,Kunkalagunta,APGB,Narasaraopet,11/12/2025,10000
+7029,Kunkalagunta,APGB,Narasaraopet,11/15/2025,20000
+7032,VRPalem,APGB,Narasaraopet,9/11/2025,60000
+7032,VRPalem,APGB,Narasaraopet,9/23/2025,13000
+7032,VRPalem,APGB,Narasaraopet,10/23/2025,201472
+7033,Gundlapalli,APGB,Narasaraopet,9/20/2025,6000
+7035,Vallabhapuram,APGB,Guntur,9/18/2025,12000
+7035,Vallabhapuram,APGB,Guntur,10/8/2025,30000
+7035,Vallabhapuram,APGB,Guntur,10/17/2025,20000
+7035,Vallabhapuram,APGB,Guntur,11/5/2025,42000
+7037,Valiveru,APGB,Guntur,9/24/2025,10000
+7038,Vinukonda,APGB,Narasaraopet,9/1/2025,15000
+7038,Vinukonda,APGB,Narasaraopet,9/11/2025,125000
+7038,Vinukonda,APGB,Narasaraopet,9/16/2025,40000
+7038,Vinukonda,APGB,Narasaraopet,9/17/2025,20000
+7038,Vinukonda,APGB,Narasaraopet,10/1/2025,75000
+7038,Vinukonda,APGB,Narasaraopet,10/7/2025,10000
+7038,Vinukonda,APGB,Narasaraopet,10/17/2025,25000
+7038,Vinukonda,APGB,Narasaraopet,10/22/2025,20000
+7038,Vinukonda,APGB,Narasaraopet,11/1/2025,10000
+7038,Vinukonda,APGB,Narasaraopet,11/3/2025,35150
+7038,Vinukonda,APGB,Narasaraopet,11/6/2025,64200
+7038,Vinukonda,APGB,Narasaraopet,11/7/2025,25000
+7038,Vinukonda,APGB,Narasaraopet,11/10/2025,50000
+7038,Vinukonda,APGB,Narasaraopet,11/13/2025,20000
+7038,Vinukonda,APGB,Narasaraopet,11/17/2025,15000
+7038,Vinukonda,APGB,Narasaraopet,11/18/2025,10000
+7038,Vinukonda,APGB,Narasaraopet,11/19/2025,20000
+7039,Repalle,APGB,Guntur,9/15/2025,8000
+7039,Repalle,APGB,Guntur,10/16/2025,32653
+7040,Attaluru,APGB,Guntur,9/30/2025,6000
+7040,Attaluru,APGB,Guntur,11/6/2025,10000
+7042,P.K.Gundla,APGB,Narasaraopet,11/3/2025,40000
+7042,P.K.Gundla,APGB,Narasaraopet,11/11/2025,10000
+7044,Bapatla,APGB,Guntur,9/22/2025,6000
+7044,Bapatla,APGB,Guntur,11/5/2025,8743
+7044,Bapatla,APGB,Guntur,11/6/2025,16926
+7044,Bapatla,APGB,Guntur,11/12/2025,28000
+7044,Bapatla,APGB,Guntur,11/14/2025,6000
+7047,Mangalagiri,APGB,Guntur,9/9/2025,150000
+7047,Mangalagiri,APGB,Guntur,9/10/2025,25000
+7047,Mangalagiri,APGB,Guntur,9/30/2025,24856
+7047,Mangalagiri,APGB,Guntur,10/21/2025,20000
+7047,Mangalagiri,APGB,Guntur,11/6/2025,41841
+7048,Sattenapalli,APGB,Narasaraopet,10/22/2025,34658
+7048,Sattenapalli,APGB,Narasaraopet,10/24/2025,70000
+7049,Chilakaluripet,APGB,Narasaraopet,9/1/2025,20000
+7049,Chilakaluripet,APGB,Narasaraopet,9/15/2025,20000
+7049,Chilakaluripet,APGB,Narasaraopet,9/24/2025,10000
+7049,Chilakaluripet,APGB,Narasaraopet,10/23/2025,50000
+7049,Chilakaluripet,APGB,Narasaraopet,10/30/2025,10000
+7049,Chilakaluripet,APGB,Narasaraopet,11/18/2025,50000
+7049,Chilakaluripet,APGB,Narasaraopet,11/26/2025,60000
+7052,Karlapalem,APGB,Guntur,9/11/2025,6000
+7052,Karlapalem,APGB,Guntur,9/26/2025,6000
+7052,Karlapalem,APGB,Guntur,11/24/2025,48000
+7052,Karlapalem,APGB,Guntur,11/25/2025,20000
+7053,Nazarpet,APGB,Guntur,10/31/2025,12000
+7053,Nazarpet,APGB,Guntur,11/26/2025,12000
+7054,Collectorate,APGB,Guntur,9/3/2025,12000
+7054,Collectorate,APGB,Guntur,9/20/2025,10000
+7054,Collectorate,APGB,Guntur,9/29/2025,8200
+7056,Nagaram,APGB,Guntur,9/2/2025,8000
+7056,Nagaram,APGB,Guntur,9/4/2025,8356
+7056,Nagaram,APGB,Guntur,9/20/2025,15000
+7056,Nagaram,APGB,Guntur,9/23/2025,12000
+7056,Nagaram,APGB,Guntur,9/30/2025,15000
+7056,Nagaram,APGB,Guntur,10/3/2025,30000
+7056,Nagaram,APGB,Guntur,11/5/2025,26500
+7056,Nagaram,APGB,Guntur,11/6/2025,20000
+7056,Nagaram,APGB,Guntur,11/12/2025,37000
+7057,Pedakakani,APGB,Guntur,9/11/2025,12000
+7057,Pedakakani,APGB,Guntur,10/18/2025,30000
+7057,Pedakakani,APGB,Guntur,11/5/2025,6000
+7057,Pedakakani,APGB,Guntur,11/6/2025,36000
+7058,Chebrole(G),APGB,Guntur,9/26/2025,16000
+7059,Tadepalli,APGB,Guntur,10/29/2025,79126
+7059,Tadepalli,APGB,Guntur,11/4/2025,20000
+7061,Duggirala,APGB,Guntur,9/11/2025,8500
+7061,Duggirala,APGB,Guntur,10/22/2025,22626
+7062,Bhattiprolu,APGB,Guntur,11/13/2025,10000
+7063,Pedanandipadu,APGB,Guntur,10/24/2025,71975
+7064,Morrispet,APGB,Guntur,9/23/2025,8000
+7064,Morrispet,APGB,Guntur,9/30/2025,24841
+7066,Muppalla,APGB,Narasaraopet,10/23/2025,13661
+7068,Vemuru,APGB,Guntur,11/26/2025,20000
+7069,Edlapalli,APGB,Guntur,9/18/2025,25000
+7070,Ganapavaram,APGB,Narasaraopet,9/2/2025,6000
+7070,Ganapavaram,APGB,Narasaraopet,9/10/2025,6000
+7070,Ganapavaram,APGB,Narasaraopet,9/16/2025,10000
+7070,Ganapavaram,APGB,Narasaraopet,10/4/2025,50000
+7070,Ganapavaram,APGB,Narasaraopet,10/8/2025,10000
+7070,Ganapavaram,APGB,Narasaraopet,10/14/2025,12000
+7070,Ganapavaram,APGB,Narasaraopet,10/17/2025,38031
+7071,Pedavadlapudi,APGB,Guntur,9/11/2025,60000
+7073,Gorantla,APGB,Guntur,11/11/2025,44523
+7075,Takkellapadu,APGB,Guntur,10/15/2025,20000
+7076,Pedaravuru,APGB,Guntur,9/18/2025,35000
+7076,Pedaravuru,APGB,Guntur,10/17/2025,16000
+7076,Pedaravuru,APGB,Guntur,11/12/2025,15000
+7076,Pedaravuru,APGB,Guntur,11/13/2025,10000
+7076,Pedaravuru,APGB,Guntur,11/20/2025,20000
+7076,Pedaravuru,APGB,Guntur,11/25/2025,10000
+7076,Pedaravuru,APGB,Guntur,11/26/2025,10000
+7078,Brahmanapalli,APGB,Narasaraopet,9/19/2025,10000
+7078,Brahmanapalli,APGB,Narasaraopet,11/5/2025,8500
+7079,Nandigama,APGB,Narasaraopet,11/17/2025,12000
+7080,Pedapalakaluru,APGB,Guntur,10/18/2025,40416
+7082,Atmakuru,APGB,Guntur,11/20/2025,6000
+7082,Atmakuru,APGB,Guntur,11/21/2025,8356
+7083,JmPuram,APGB,Narasaraopet,10/23/2025,60767
+7083,JmPuram,APGB,Narasaraopet,10/24/2025,10000
+7084,Chinaparimi,APGB,Guntur,10/29/2025,15000
+7087,Nudurupadu,APGB,Narasaraopet,10/16/2025,16146
+7089,Rayapudi,APGB,Guntur,11/25/2025,11537
+7090,Mulpuru,APGB,Guntur,11/5/2025,18389
+7091,Thulluru,APGB,Guntur,9/24/2025,8356
+7091,Thulluru,APGB,Guntur,9/26/2025,106000
+7091,Thulluru,APGB,Guntur,10/9/2025,10000
+7091,Thulluru,APGB,Guntur,11/15/2025,6000
+7091,Thulluru,APGB,Guntur,11/18/2025,12000
+7092,Ananthavaram,APGB,Guntur,11/1/2025,8743
+7093,Undavalli,APGB,Guntur,10/27/2025,13415
+7093,Undavalli,APGB,Guntur,11/15/2025,54000
+7094,Namburu,APGB,Guntur,9/30/2025,27909
+7094,Namburu,APGB,Guntur,10/8/2025,10000
+7094,Namburu,APGB,Guntur,10/23/2025,72000
+7095,Siripuram,APGB,Guntur,10/4/2025,50000
+7097,Allurivaripalem,APGB,Narasaraopet,9/9/2025,14000
+7097,Allurivaripalem,APGB,Narasaraopet,9/10/2025,6000
+7097,Allurivaripalem,APGB,Narasaraopet,9/11/2025,6000
+7097,Allurivaripalem,APGB,Narasaraopet,9/19/2025,6000
+7097,Allurivaripalem,APGB,Narasaraopet,9/22/2025,6000
+7097,Allurivaripalem,APGB,Narasaraopet,10/29/2025,6000
+7098,Bellamkonda,APGB,Narasaraopet,9/20/2025,9000
+7098,Bellamkonda,APGB,Narasaraopet,9/25/2025,125000
+7098,Bellamkonda,APGB,Narasaraopet,10/4/2025,25000
+7098,Bellamkonda,APGB,Narasaraopet,10/23/2025,79500
+7098,Bellamkonda,APGB,Narasaraopet,10/24/2025,10000
+7102,Rajahmundry,APGB,Rajahmundry,9/11/2025,9000
+7102,Rajahmundry,APGB,Rajahmundry,11/5/2025,20000
+7103,Kandikuppa,APGB,Rajahmundry,10/23/2025,18642
+7106,Somavaram,APGB,Rajahmundry,9/19/2025,17000
+7106,Somavaram,APGB,Rajahmundry,9/20/2025,22000
+7106,Somavaram,APGB,Rajahmundry,9/25/2025,35000
+7106,Somavaram,APGB,Rajahmundry,10/7/2025,10000
+7106,Somavaram,APGB,Rajahmundry,11/10/2025,9000
+7106,Somavaram,APGB,Rajahmundry,11/11/2025,18000
+7108,Devaguptam,APGB,Rajahmundry,10/23/2025,39000
+7110,Kandrakota,APGB,Rajahmundry,11/21/2025,10000
+7115,Peddapuram,APGB,Rajahmundry,9/30/2025,6000
+7115,Peddapuram,APGB,Rajahmundry,10/22/2025,12000
+7115,Peddapuram,APGB,Rajahmundry,11/7/2025,6000
+7115,Peddapuram,APGB,Rajahmundry,11/21/2025,10000
+7116,Antharvedipalem,APGB,Eluru,9/29/2025,15000
+7116,Antharvedipalem,APGB,Eluru,11/6/2025,32000
+7116,Antharvedipalem,APGB,Eluru,11/14/2025,10000
+7118,Kakinada,APGB,Rajahmundry,11/10/2025,100000
+7118,Kakinada,APGB,Rajahmundry,11/20/2025,15000
+7122,Laxmipolavaram,APGB,Rajahmundry,9/23/2025,21000
+7122,Laxmipolavaram,APGB,Rajahmundry,9/25/2025,7000
+7122,Laxmipolavaram,APGB,Rajahmundry,10/6/2025,14000
+7122,Laxmipolavaram,APGB,Rajahmundry,10/22/2025,14000
+7126,Geddanapalli,APGB,Rajahmundry,9/24/2025,50000
+7130,A.Kothapalli,APGB,Rajahmundry,9/19/2025,20000
+7130,A.Kothapalli,APGB,Rajahmundry,9/23/2025,10000
+7130,A.Kothapalli,APGB,Rajahmundry,11/26/2025,20000
+7134,Srirangapatnam,APGB,Rajahmundry,9/26/2025,12000
+7134,Srirangapatnam,APGB,Rajahmundry,10/6/2025,12000
+7134,Srirangapatnam,APGB,Rajahmundry,11/6/2025,18000
+7139,Razole,APGB,Eluru,9/1/2025,250000
+7139,Razole,APGB,Eluru,10/22/2025,50000
+7141,Pithapuram,APGB,Rajahmundry,11/6/2025,15000
+7142,Ramachandrapuram,APGB,Rajahmundry,11/15/2025,10000
+7143,Mummidivaram,APGB,Rajahmundry,10/23/2025,37548
+7145,Gadala,APGB,Rajahmundry,9/4/2025,10000
+7145,Gadala,APGB,Rajahmundry,11/12/2025,10000
+7145,Gadala,APGB,Rajahmundry,11/15/2025,17000
+7146,Rajapudi,APGB,Rajahmundry,11/26/2025,20000
+7147,Kesavaram,APGB,Rajahmundry,9/10/2025,6000
+7147,Kesavaram,APGB,Rajahmundry,10/18/2025,26000
+7147,Kesavaram,APGB,Rajahmundry,11/20/2025,10000
+7149,Kovvada,APGB,Rajahmundry,10/29/2025,10000
+7149,Kovvada,APGB,Rajahmundry,11/5/2025,6000
+7150,Atchampeta(E),APGB,Rajahmundry,10/23/2025,60000
+7151,A.V.AppaRaoRoad,APGB,Rajahmundry,9/11/2025,6000
+7151,A.V.AppaRaoRoad,APGB,Rajahmundry,9/18/2025,6000
+7151,A.V.AppaRaoRoad,APGB,Rajahmundry,10/15/2025,6000
+7151,A.V.AppaRaoRoad,APGB,Rajahmundry,10/23/2025,14300
+7151,A.V.AppaRaoRoad,APGB,Rajahmundry,11/3/2025,12000
+7151,A.V.AppaRaoRoad,APGB,Rajahmundry,11/5/2025,12000
+7151,A.V.AppaRaoRoad,APGB,Rajahmundry,11/6/2025,6000
+7151,A.V.AppaRaoRoad,APGB,Rajahmundry,11/14/2025,12000
+7155,K.Gangavaram,APGB,Rajahmundry,11/7/2025,10000
+7155,K.Gangavaram,APGB,Rajahmundry,11/17/2025,10000
+7156,MunsabgariCentre,APGB,Rajahmundry,10/8/2025,10000
+7156,MunsabgariCentre,APGB,Rajahmundry,10/23/2025,10000
+7157,Tuni,APGB,Rajahmundry,9/24/2025,10000
+7157,Tuni,APGB,Rajahmundry,11/20/2025,60000
+7161,Vetlapalem,APGB,Rajahmundry,11/6/2025,15000
+7164,Polamuru(E),APGB,Rajahmundry,11/10/2025,20000
+7165,Choppella,APGB,Rajahmundry,10/16/2025,34000
+7170,Kothapet,APGB,Rajahmundry,9/25/2025,10000
+7173,Ganti,APGB,Rajahmundry,9/26/2025,8000
+7173,Ganti,APGB,Rajahmundry,9/30/2025,8000
+7174,Bendapudi,APGB,Rajahmundry,10/22/2025,10000
+7175,Komaripalem,APGB,Rajahmundry,11/5/2025,60000
+7179,Sarpavaram,APGB,Rajahmundry,10/23/2025,14295
+7180,Morampudi,APGB,Rajahmundry,9/20/2025,10000
+7180,Morampudi,APGB,Rajahmundry,11/6/2025,10000
+7180,Morampudi,APGB,Rajahmundry,11/17/2025,6000
+7182,Burugupudi,APGB,Rajahmundry,10/23/2025,10000
+7182,Burugupudi,APGB,Rajahmundry,11/6/2025,17000
+7183,Kothuru,APGB,Rajahmundry,9/2/2025,15000
+7183,Kothuru,APGB,Rajahmundry,9/3/2025,15000
+7183,Kothuru,APGB,Rajahmundry,9/18/2025,20000
+7183,Kothuru,APGB,Rajahmundry,9/20/2025,10000
+7183,Kothuru,APGB,Rajahmundry,9/29/2025,20000
+7183,Kothuru,APGB,Rajahmundry,10/15/2025,15000
+7183,Kothuru,APGB,Rajahmundry,10/16/2025,10000
+7183,Kothuru,APGB,Rajahmundry,10/22/2025,10000
+7183,Kothuru,APGB,Rajahmundry,10/29/2025,15000
+7183,Kothuru,APGB,Rajahmundry,11/5/2025,30000
+7183,Kothuru,APGB,Rajahmundry,11/15/2025,50000
+7183,Kothuru,APGB,Rajahmundry,11/17/2025,30000
+7183,Kothuru,APGB,Rajahmundry,11/26/2025,20000
+7184,Pathathungapadu,APGB,Rajahmundry,9/10/2025,9000
+7184,Pathathungapadu,APGB,Rajahmundry,11/26/2025,50000
+7185,Yeleswaram,APGB,Rajahmundry,9/30/2025,10000
+7193,Mulasthanam,APGB,Rajahmundry,10/7/2025,10000
+7193,Mulasthanam,APGB,Rajahmundry,11/11/2025,10000
+7194,Panduru,APGB,Rajahmundry,9/8/2025,100000
+7194,Panduru,APGB,Rajahmundry,11/10/2025,10000
+7199,RamarajuLanka,APGB,Rajahmundry,11/26/2025,65000
+7204,Nidamarru(W),APGB,Eluru,10/16/2025,28000
+7204,Nidamarru(W),APGB,Eluru,10/22/2025,25000
+7205,Penumadam,APGB,Eluru,10/23/2025,12000
+7207,Eletipadu,APGB,Eluru,9/3/2025,6000
+7209,Medapadu,APGB,Eluru,10/23/2025,20000
+7211,Gopannapalem,APGB,Eluru,9/10/2025,18000
+7211,Gopannapalem,APGB,Eluru,9/25/2025,19000
+7211,Gopannapalem,APGB,Eluru,9/29/2025,28000
+7211,Gopannapalem,APGB,Eluru,9/30/2025,12000
+7211,Gopannapalem,APGB,Eluru,10/3/2025,10000
+7211,Gopannapalem,APGB,Eluru,10/22/2025,10000
+7211,Gopannapalem,APGB,Eluru,10/23/2025,10000
+7212,Purushothapalli,APGB,Eluru,9/3/2025,10000
+7212,Purushothapalli,APGB,Eluru,10/7/2025,12000
+7212,Purushothapalli,APGB,Eluru,10/22/2025,50000
+7213,Makkinavarigudam,APGB,Eluru,10/22/2025,10000
+7213,Makkinavarigudam,APGB,Eluru,10/23/2025,20000
+7213,Makkinavarigudam,APGB,Eluru,10/30/2025,30000
+7213,Makkinavarigudam,APGB,Eluru,11/5/2025,20000
+7217,Koppaka,APGB,Eluru,9/4/2025,28000
+7217,Koppaka,APGB,Eluru,9/30/2025,35000
+7217,Koppaka,APGB,Eluru,10/23/2025,21000
+7217,Koppaka,APGB,Eluru,10/29/2025,28000
+7220,Chinakapavaram,APGB,Eluru,9/19/2025,10000
+7220,Chinakapavaram,APGB,Eluru,9/25/2025,10000
+7220,Chinakapavaram,APGB,Eluru,10/17/2025,10000
+7220,Chinakapavaram,APGB,Eluru,10/29/2025,10000
+7220,Chinakapavaram,APGB,Eluru,11/13/2025,10000
+7220,Chinakapavaram,APGB,Eluru,11/14/2025,10000
+7220,Chinakapavaram,APGB,Eluru,11/21/2025,10000
+7225,Valluru(W),APGB,Eluru,9/6/2025,12000
+7225,Valluru(W),APGB,Eluru,9/20/2025,33000
+7225,Valluru(W),APGB,Eluru,11/13/2025,24000
+7227,Eluru,APGB,Eluru,9/1/2025,10000
+7227,Eluru,APGB,Eluru,11/20/2025,50000
+7229,Polamuru(W),APGB,Eluru,9/23/2025,13000
+7229,Polamuru(W),APGB,Eluru,10/23/2025,13206
+7232,Agadalanka,APGB,Eluru,9/20/2025,24000
+7232,Agadalanka,APGB,Eluru,10/23/2025,24000
+7237,Bhimavaram,APGB,Eluru,11/13/2025,15000
+7237,Bhimavaram,APGB,Eluru,11/24/2025,22000
+7238,Tadepalligudem,APGB,Eluru,9/30/2025,12000
+7240,Palakol,APGB,Eluru,10/4/2025,500000
+7240,Palakol,APGB,Eluru,10/6/2025,250000
+7244,Nayudugudem,APGB,Eluru,9/30/2025,8500
+7252,Korumamidi,APGB,Eluru,10/23/2025,12000
+7259,Nidadavole,APGB,Eluru,9/1/2025,6000
+7259,Nidadavole,APGB,Eluru,11/3/2025,10000
+7259,Nidadavole,APGB,Eluru,11/5/2025,10000
+7260,Appanaveedu,APGB,Eluru,10/22/2025,20000
+7262,Akiveedu,APGB,Eluru,10/30/2025,50000
+7262,Akiveedu,APGB,Eluru,11/13/2025,10000
+7268,Chintalapudi,APGB,Eluru,9/17/2025,6000
+7268,Chintalapudi,APGB,Eluru,9/19/2025,10000
+7272,Kovvuru,APGB,Eluru,9/8/2025,15000
+7272,Kovvuru,APGB,Eluru,9/17/2025,15000
+7272,Kovvuru,APGB,Eluru,9/29/2025,12000
+7272,Kovvuru,APGB,Eluru,10/7/2025,10000
+7272,Kovvuru,APGB,Eluru,10/18/2025,10000
+7272,Kovvuru,APGB,Eluru,11/13/2025,20000
+7276,DwarakaTirumala,APGB,Eluru,9/30/2025,10000
+7278,Lingapalem,APGB,Eluru,9/30/2025,10000
+7288,Pentapadu,APGB,Eluru,9/24/2025,21000
+7288,Pentapadu,APGB,Eluru,9/29/2025,12000
+7288,Pentapadu,APGB,Eluru,9/30/2025,18000
+7288,Pentapadu,APGB,Eluru,10/22/2025,20000
+7288,Pentapadu,APGB,Eluru,11/5/2025,20000
+7288,Pentapadu,APGB,Eluru,11/13/2025,10000
+7288,Pentapadu,APGB,Eluru,11/24/2025,18700
+7289,Pedavegi,APGB,Eluru,10/30/2025,12000
+7290,Tadikalapudi,APGB,Eluru,9/10/2025,10000
+7292,Devarapalli,APGB,Eluru,9/10/2025,12000
+7292,Devarapalli,APGB,Eluru,10/22/2025,18000
+7292,Devarapalli,APGB,Eluru,11/5/2025,18000
+7298,Kallakuru,APGB,Eluru,9/9/2025,24000
+7298,Kallakuru,APGB,Eluru,9/30/2025,36000
+7298,Kallakuru,APGB,Eluru,10/22/2025,108000
+7298,Kallakuru,APGB,Eluru,10/30/2025,50000
+7298,Kallakuru,APGB,Eluru,11/15/2025,153000
+7298,Kallakuru,APGB,Eluru,11/21/2025,162000
+7299,Manchili,APGB,Eluru,11/14/2025,10000
+7303,Telikicharla,APGB,Eluru,9/30/2025,10000
+7305,Borrampalem,APGB,Eluru,9/9/2025,12000
+7305,Borrampalem,APGB,Eluru,9/20/2025,13000
+7306,Rangapuram,APGB,Eluru,9/9/2025,30000
+7306,Rangapuram,APGB,Eluru,10/23/2025,42000
+7306,Rangapuram,APGB,Eluru,11/14/2025,30000
+7307,Unagatla,APGB,Eluru,9/30/2025,6000
+7307,Unagatla,APGB,Eluru,11/5/2025,25000
+7309,Vatluru,APGB,Eluru,10/22/2025,10000
+7310,Dommeru,APGB,Eluru,9/2/2025,25000
+7310,Dommeru,APGB,Eluru,10/8/2025,51000
+7310,Dommeru,APGB,Eluru,10/29/2025,18000
+7310,Dommeru,APGB,Eluru,11/14/2025,10000
+7401,Pedapudi,APGB,Rajahmundry,9/16/2025,12000
+7401,Pedapudi,APGB,Rajahmundry,9/22/2025,12000
+7401,Pedapudi,APGB,Rajahmundry,10/3/2025,12000
+7401,Pedapudi,APGB,Rajahmundry,10/23/2025,15000
+7401,Pedapudi,APGB,Rajahmundry,11/26/2025,15000
+7402,Godarigunta,APGB,Rajahmundry,9/15/2025,10000
+7402,Godarigunta,APGB,Rajahmundry,9/29/2025,20000
+7402,Godarigunta,APGB,Rajahmundry,10/29/2025,10000
+7402,Godarigunta,APGB,Rajahmundry,11/6/2025,10000
+7402,Godarigunta,APGB,Rajahmundry,11/14/2025,10000
+7403,Innispeta,APGB,Rajahmundry,10/30/2025,39000
+7403,Innispeta,APGB,Rajahmundry,11/5/2025,25000
+7404,Kotananduru,APGB,Rajahmundry,9/25/2025,6000
+7407,Gokavaram,APGB,Rajahmundry,9/19/2025,6000
+7407,Gokavaram,APGB,Rajahmundry,11/26/2025,8400
+7408,Ontimamidi,APGB,Rajahmundry,9/17/2025,20000
+7408,Ontimamidi,APGB,Rajahmundry,10/8/2025,10000
+7408,Ontimamidi,APGB,Rajahmundry,10/14/2025,10000
+7408,Ontimamidi,APGB,Rajahmundry,11/3/2025,20000
+7408,Ontimamidi,APGB,Rajahmundry,11/5/2025,30000
+7409,Gollavilli,APGB,Rajahmundry,9/9/2025,6000
+7409,Gollavilli,APGB,Rajahmundry,9/11/2025,9000
+7409,Gollavilli,APGB,Rajahmundry,9/29/2025,12000
+7409,Gollavilli,APGB,Rajahmundry,10/23/2025,25000
+7411,Gollapalem,APGB,Rajahmundry,9/26/2025,20000
+7412,Tatipaka,APGB,Rajahmundry,11/14/2025,10000
+7413,Durgada,APGB,Rajahmundry,9/17/2025,6000
+7413,Durgada,APGB,Rajahmundry,9/18/2025,6000
+7414,VOMMANGI,APGB,Rajahmundry,9/18/2025,10000
+7414,VOMMANGI,APGB,Rajahmundry,9/22/2025,6000
+7414,VOMMANGI,APGB,Rajahmundry,10/29/2025,10000
+7702,KuppuraoColony,APGB,Guntur,10/23/2025,10000
+7702,KuppuraoColony,APGB,Guntur,11/5/2025,10000
+7704,Tadikonda,APGB,Guntur,10/14/2025,36000
+7705,Ananthavarappadu,APGB,Guntur,9/17/2025,10000
+7705,Ananthavarappadu,APGB,Guntur,10/8/2025,17000
+7705,Ananthavarappadu,APGB,Guntur,10/14/2025,10000
+7705,Ananthavarappadu,APGB,Guntur,10/23/2025,60000
+7705,Ananthavarappadu,APGB,Guntur,11/3/2025,100000
+7705,Ananthavarappadu,APGB,Guntur,11/5/2025,44653
+7706,LaunchesterRoad,APGB,Guntur,9/3/2025,24000
+7706,LaunchesterRoad,APGB,Guntur,9/4/2025,12000
+7706,LaunchesterRoad,APGB,Guntur,9/6/2025,12000
+7706,LaunchesterRoad,APGB,Guntur,9/19/2025,12000
+7706,LaunchesterRoad,APGB,Guntur,9/23/2025,24000
+7706,LaunchesterRoad,APGB,Guntur,9/25/2025,12000
+7706,LaunchesterRoad,APGB,Guntur,9/29/2025,12000
+7706,LaunchesterRoad,APGB,Guntur,10/6/2025,24000
+7706,LaunchesterRoad,APGB,Guntur,10/7/2025,24000
+7706,LaunchesterRoad,APGB,Guntur,10/9/2025,18000
+7706,LaunchesterRoad,APGB,Guntur,10/18/2025,24000
+7706,LaunchesterRoad,APGB,Guntur,10/22/2025,12000
+7706,LaunchesterRoad,APGB,Guntur,10/29/2025,50000
+7706,LaunchesterRoad,APGB,Guntur,11/1/2025,30000
+7706,LaunchesterRoad,APGB,Guntur,11/5/2025,36000
+7706,LaunchesterRoad,APGB,Guntur,11/6/2025,6000
+7706,LaunchesterRoad,APGB,Guntur,11/19/2025,30000
+7706,LaunchesterRoad,APGB,Guntur,11/21/2025,36000
+7707,BrundavanGardens,APGB,Guntur,10/16/2025,82958
+7708,Vemuluripadu,APGB,Narasaraopet,9/8/2025,10000
+7708,Vemuluripadu,APGB,Narasaraopet,10/24/2025,6000
+7708,Vemuluripadu,APGB,Narasaraopet,11/11/2025,10000
+7708,Vemuluripadu,APGB,Narasaraopet,11/21/2025,6000
+7708,Vemuluripadu,APGB,Narasaraopet,11/24/2025,10000
+7709,Pittalavanipalem,APGB,Guntur,9/1/2025,12000
+7709,Pittalavanipalem,APGB,Guntur,9/10/2025,20700
+7709,Pittalavanipalem,APGB,Guntur,9/18/2025,12000
+7709,Pittalavanipalem,APGB,Guntur,9/26/2025,12000
+7709,Pittalavanipalem,APGB,Guntur,9/29/2025,12000
+7709,Pittalavanipalem,APGB,Guntur,10/9/2025,20000
+7709,Pittalavanipalem,APGB,Guntur,10/21/2025,55000
+7709,Pittalavanipalem,APGB,Guntur,10/22/2025,30000
+7709,Pittalavanipalem,APGB,Guntur,10/30/2025,35000
+7709,Pittalavanipalem,APGB,Guntur,11/1/2025,65000
+7709,Pittalavanipalem,APGB,Guntur,11/6/2025,15000
+7709,Pittalavanipalem,APGB,Guntur,11/10/2025,10000
+7709,Pittalavanipalem,APGB,Guntur,11/11/2025,10000
+7709,Pittalavanipalem,APGB,Guntur,11/12/2025,30000
+7709,Pittalavanipalem,APGB,Guntur,11/13/2025,50000
+7709,Pittalavanipalem,APGB,Guntur,11/14/2025,15000
+7709,Pittalavanipalem,APGB,Guntur,11/17/2025,15000
+7709,Pittalavanipalem,APGB,Guntur,11/18/2025,15000
+7709,Pittalavanipalem,APGB,Guntur,11/25/2025,35000
+7711,Ponnekallu,APGB,Guntur,9/16/2025,21285
+7711,Ponnekallu,APGB,Guntur,11/3/2025,10212
+7712,Nadendla,APGB,Narasaraopet,9/20/2025,50000
+7712,Nadendla,APGB,Narasaraopet,9/25/2025,35000
+7712,Nadendla,APGB,Narasaraopet,9/30/2025,20000
+7712,Nadendla,APGB,Narasaraopet,10/23/2025,20000
+7712,Nadendla,APGB,Narasaraopet,10/27/2025,25000
+7712,Nadendla,APGB,Narasaraopet,11/26/2025,86000
+7713,Cherukupalli,APGB,Guntur,9/1/2025,120000
+7714,Pillutla,APGB,Narasaraopet,10/8/2025,20000
+7714,Pillutla,APGB,Narasaraopet,10/15/2025,10000
+7714,Pillutla,APGB,Narasaraopet,10/18/2025,20000
+7715,Nemalikallu,APGB,Guntur,10/14/2025,10000
+7715,Nemalikallu,APGB,Guntur,11/11/2025,10000
+7715,Nemalikallu,APGB,Guntur,11/12/2025,10000
+7717,Suddapalli,APGB,Guntur,9/16/2025,8000
+7717,Suddapalli,APGB,Guntur,10/16/2025,10000
+7718,Pinnelli,APGB,Narasaraopet,11/18/2025,20000
+7719,Sathuluru,APGB,Narasaraopet,10/9/2025,10000
+7719,Sathuluru,APGB,Narasaraopet,10/23/2025,20000
+7719,Sathuluru,APGB,Narasaraopet,11/5/2025,20000
+7719,Sathuluru,APGB,Narasaraopet,11/18/2025,10000
+7719,Sathuluru,APGB,Narasaraopet,11/19/2025,100000
+7719,Sathuluru,APGB,Narasaraopet,11/20/2025,10000
+7720,Vellaturu,APGB,Guntur,11/1/2025,14446
+7720,Vellaturu,APGB,Guntur,11/6/2025,20000
+7721,Kavuru,APGB,Narasaraopet,9/2/2025,207000
+7721,Kavuru,APGB,Narasaraopet,10/8/2025,100000
+7721,Kavuru,APGB,Narasaraopet,10/16/2025,101000
+7721,Kavuru,APGB,Narasaraopet,10/22/2025,204000
+7721,Kavuru,APGB,Narasaraopet,11/5/2025,60000
+7722,Inavolu,APGB,Narasaraopet,9/8/2025,15000
+7722,Inavolu,APGB,Narasaraopet,9/16/2025,10000
+7722,Inavolu,APGB,Narasaraopet,9/26/2025,10000
+7722,Inavolu,APGB,Narasaraopet,10/8/2025,50000
+7722,Inavolu,APGB,Narasaraopet,10/22/2025,10000
+7722,Inavolu,APGB,Narasaraopet,10/24/2025,25000
+7722,Inavolu,APGB,Narasaraopet,11/4/2025,17000
+7722,Inavolu,APGB,Narasaraopet,11/6/2025,8295
+7722,Inavolu,APGB,Narasaraopet,11/25/2025,25000
+7723,Ipur,APGB,Narasaraopet,9/1/2025,10000
+7723,Ipur,APGB,Narasaraopet,10/17/2025,10000
+7723,Ipur,APGB,Narasaraopet,10/18/2025,10000
+7723,Ipur,APGB,Narasaraopet,10/22/2025,15000
+7723,Ipur,APGB,Narasaraopet,10/30/2025,30000
+7723,Ipur,APGB,Narasaraopet,10/31/2025,10000
+7723,Ipur,APGB,Narasaraopet,11/3/2025,15000
+7723,Ipur,APGB,Narasaraopet,11/11/2025,35000
+7723,Ipur,APGB,Narasaraopet,11/14/2025,10000
+7723,Ipur,APGB,Narasaraopet,11/21/2025,33000
+7723,Ipur,APGB,Narasaraopet,11/25/2025,10000
+7723,Ipur,APGB,Narasaraopet,11/26/2025,10000
+7725,Kolluru,APGB,Guntur,9/4/2025,10000
+7725,Kolluru,APGB,Guntur,9/6/2025,10000
+7725,Kolluru,APGB,Guntur,9/16/2025,10000
+7725,Kolluru,APGB,Guntur,10/7/2025,16007
+7725,Kolluru,APGB,Guntur,10/24/2025,50000
+7725,Kolluru,APGB,Guntur,11/15/2025,50000
+7726,PedaKonduru,APGB,Guntur,9/30/2025,28295
+7727,Pasumarru,APGB,Narasaraopet,9/22/2025,36000
+7728,Kantheru,APGB,Guntur,11/6/2025,12000
+7729,Palapadu,APGB,Narasaraopet,9/10/2025,8000
+7729,Palapadu,APGB,Narasaraopet,10/3/2025,10000
+7729,Palapadu,APGB,Narasaraopet,11/6/2025,8500
+7730,Budampadu,APGB,Guntur,9/24/2025,15000
+7730,Budampadu,APGB,Guntur,10/18/2025,6000
+7730,Budampadu,APGB,Guntur,10/21/2025,18356
+7730,Budampadu,APGB,Guntur,10/22/2025,10000
+7730,Budampadu,APGB,Guntur,11/6/2025,12000
+7730,Budampadu,APGB,Guntur,11/21/2025,15000
+7731,Kanuparru,APGB,Narasaraopet,9/17/2025,14000
+7731,Kanuparru,APGB,Narasaraopet,9/25/2025,10000
+7731,Kanuparru,APGB,Narasaraopet,9/29/2025,15000
+7731,Kanuparru,APGB,Narasaraopet,11/6/2025,10000
+7735,Rompicherla,APGB,Narasaraopet,9/9/2025,20000
+7735,Rompicherla,APGB,Narasaraopet,9/22/2025,33000
+7735,Rompicherla,APGB,Narasaraopet,9/24/2025,15000
+7735,Rompicherla,APGB,Narasaraopet,10/3/2025,12000
+7735,Rompicherla,APGB,Narasaraopet,10/15/2025,10000
+7735,Rompicherla,APGB,Narasaraopet,10/18/2025,10000
+7735,Rompicherla,APGB,Narasaraopet,11/1/2025,40000
+7735,Rompicherla,APGB,Narasaraopet,11/13/2025,73936
+7736,A.TAgraharam,APGB,Guntur,10/3/2025,6000
+7736,A.TAgraharam,APGB,Guntur,10/9/2025,6000
+7736,A.TAgraharam,APGB,Guntur,11/21/2025,10000
+7738,Chenchupeta,APGB,Guntur,9/20/2025,6000
+7738,Chenchupeta,APGB,Guntur,9/22/2025,7000
+7738,Chenchupeta,APGB,Guntur,9/23/2025,8300
+7738,Chenchupeta,APGB,Guntur,9/25/2025,8422
+7739,Karumanchi,APGB,Narasaraopet,9/2/2025,30000
+7739,Karumanchi,APGB,Narasaraopet,11/18/2025,15000
+7740,Lagadapadu,APGB,Narasaraopet,11/12/2025,20349
+7741,Gurazala,APGB,Narasaraopet,11/3/2025,15000
+7743,Vellatur,APGB,Narasaraopet,10/6/2025,10000
+7744,NarasaraopetaRural,APGB,Narasaraopet,10/1/2025,26027
+7745,Ganapavaram(Cpt),APGB,Narasaraopet,10/24/2025,12000
+7747,Railpeta,APGB,Guntur,10/9/2025,12000
+7748,Chinapulivarru,APGB,Guntur,11/1/2025,33979
+7750,Brodipet,APGB,Guntur,9/30/2025,8743
+7751,Madala,APGB,Narasaraopet,10/24/2025,20313
+7752,113Thalluru,APGB,Narasaraopet,9/29/2025,29453
+7752,113Thalluru,APGB,Narasaraopet,10/23/2025,10440
+7754,RUPENAGUNTLA,APGB,Narasaraopet,11/5/2025,23291
+7755,Kesanapalli,APGB,Narasaraopet,11/3/2025,20000
+7756,75Tyallur,APGB,Narasaraopet,11/11/2025,51000
+7756,75Tyallur,APGB,Narasaraopet,11/12/2025,10000`;
+
+function parseData() {
+  const rows = CSV.trim().split('\n');
+  const data = [];
+  const regions = new Set();
+  rows.forEach(r => {
+    const p = r.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/);
+    if (p.length < 6) return;
+    const premium = parseFloat(p[5].replace(/[" ,]/g,''));
+    if (isNaN(premium)) return;
+    const date = new Date(p[4].trim());
+    const month = date.toLocaleString('default', {month:'long'});
+    if (['October','November'].includes(month)) {
+      const item = { branch: p[1].trim(), bank: p[2].trim(), region: p[3].trim(), date, premium, month };
+      data.push(item);
+      regions.add(item.region);
+    }
+  });
+  const select = document.getElementById('regionSelect');
+  [...regions].sort().forEach(r => {
+    const opt = document.createElement('option');
+    opt.value = r; opt.textContent = r;
+    select.appendChild(opt);
+  });
+  return data;
+}
+
+function formatL(val) { return `₹${(val/100000).toFixed(1)}L`; }
+
+let allData = [];
+
+function filterAndUpdate() {
+  const month = document.querySelector('button.active').dataset.month;
+  const region = document.getElementById('regionSelect').value;
+  const search = document.getElementById('search').value.toLowerCase();
+
+  let filtered = allData.filter(d =>
+    (month === 'All' || d.month === month) &&
+    (!region || d.region === region) &&
+    (d.branch.toLowerCase().includes(search) || d.region.toLowerCase().includes(search))
+  );
+
+  updateKPIs(filtered);
+  drawTrendChart(filtered);
+  drawRegionChart(filtered);
+  updateRMTable(filtered);
+  updateBranchTable(filtered);
+}
+
+function updateKPIs(data) {
+  const total = data.reduce((s,i)=>s+i.premium,0);
+  document.getElementById('total').textContent = formatL(total);
+
+  const branchTotals = {}; data.forEach(d => branchTotals[d.branch] = (branchTotals[d.branch]||0) + d.premium);
+  const regionTotals = {}; data.forEach(d => regionTotals[d.region] = (regionTotals[d.region]||0) + d.premium);
+
+  const eliteBM = Object.values(branchTotals).filter(v => v >= 600000).length;
+  const eliteRM = Object.values(regionTotals).filter(v => v >= 2500000).length;
+
+  document.getElementById('eliteBranches').textContent = eliteBM;
+  document.getElementById('eliteRMs').textContent = eliteRM;
+}
+
+function updateRMTable(data) {
+  const regions = {};
+  data.forEach(d => regions[d.region] = (regions[d.region]||0) + d.premium);
+
+  const list = Object.entries(regions).map(([region, total]) => {
+    let club = '', reward = '', cls = '';
+    if (total >= 2500000) {
+      club = "Chairman Elite Club"; reward = "Trophy of honor from Chairman & Invitation to National training meet for RM +2 members"; cls = "elite-club-rm";
+    } else if (total >= 2000000) {
+      club = "Chairman's Club"; reward = "Trophy of honor from Chairman & Invitation to National training meet for RM +1 member"; cls = "chairman-club-rm";
+    } else if (total >= 1500000) {
+      club = "GM club"; reward = "Trophy of honor from GM & Invitation to National training meet"; cls = "gm-club-rm";
+    } else {
+      club = "Not Qualified"; reward = "-"; cls = "";
+    }
+    return { region, total, club, reward, cls };
+  }).sort((a,b) => b.total - a.total);
+
+  const tbody = document.querySelector('#rmTable tbody');
+  tbody.innerHTML = '';
+  list.forEach(r => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td><strong>${r.region}</strong></td>
+      <td style="color:#10b981;font-weight:bold">${formatL(r.total)}</td>
+      <td><span class="rm-reward ${r.cls}">${r.club}</span></td>
+      <td style="font-size:0.9rem">${r.reward}</td>`;
+    tbody.appendChild(tr);
+  });
+}
+
+function updateBranchTable(data) {
+  const branches = {};
+  data.forEach(d => {
+    branches[d.branch] = (branches[d.branch] || {branch:d.branch, region:d.region, bank:d.bank, total:0});
+    branches[d.branch].total += d.premium;
+  });
+
+  const list = Object.values(branches).map(b => {
+    let club = '', reward = '', cls = '';
+    if (b.total >= 600000) {
+      club = "Chairman Elite Club"; reward = "Trophy of honor from Chairman & Invitation to National training meet + 2 people"; cls = "elite-club";
+    } else if (b.total >= 400000) {
+      club = "Chairman's Club"; reward = "Trophy of honor from Chairman & Invitation to National training meet"; cls = "chairman-club";
+    } else if (b.total >= 200000) {
+      club = "GM Club"; reward = "Trophy of honor from GM & Invitation to National training meet"; cls = "gm-club";
+    } else if (b.total >= 100000) {
+      club = "RM Club"; reward = "Plaque of Honor from RM"; cls = "rm-club";
+    } else if (b.total > 50000) {
+      club = "Insurance Club"; reward = "Certificate of appreciation from Regional Manager"; cls = "insurance";
+    } else {
+      club = "Not Qualified"; reward = "-"; cls = "";
+    }
+    return { ...b, club, reward, cls };
+  }).sort((a,b) => b.total - a.total);
+
+  const tbody = document.querySelector('#branchTable tbody');
+  tbody.innerHTML = '';
+  list.forEach(b => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td>${b.branch}</td><td>${b.region}</td><td>${b.bank}</td>
+      <td style="text-align:right;font-weight:bold;color:#10b981">${formatL(b.total)}</td>
+      <td><span class="reward ${b.cls}">${b.club}</span></td>
+      <td style="font-size:0.9rem">${b.reward}</td>`;
+    tbody.appendChild(tr);
+  });
+}
+
+// FIXED CHARTS — NOW WORKING!
+function drawTrendChart(data) {
+  const canvas = document.getElementById('trend');
+  const ctx = canvas.getContext('2d');
+  const rect = canvas.getBoundingClientRect();
+  canvas.width = rect.width * 2;
+  canvas.height = rect.height * 2;
+  ctx.scale(2, 2);
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  const daily = {};
+  data.forEach(d => {
+    const key = d.date.toISOString().slice(0,10);
+    daily[key] = (daily[key] || 0) + d.premium;
+  });
+  const dates = Object.keys(daily).sort();
+  const values = dates.map(d => daily[d]);
+  if (values.length === 0) return;
+
+  const maxVal = Math.max(...values) * 1.1;
+  const padX = 60, padY = 40;
+  const w = canvas.width/2 - padX*2;
+  const h = canvas.height/2 - padY*2;
+
+  // Background
+  ctx.fillStyle = '#1e293b'; ctx.fillRect(0,0,canvas.width/2,canvas.height/2);
+
+  // Grid + Y labels
+  ctx.strokeStyle = '#334155'; ctx.fillStyle = '#94a3b8'; ctx.textAlign = 'right';
+  for(let i = 0; i <= 5; i++) {
+    const y = padY + i * (h/5);
+    ctx.beginPath(); ctx.moveTo(padX, y); ctx.lineTo(padX + w, y); ctx.stroke();
+    ctx.fillText((maxVal*(5-i)/5/100000).toFixed(1) + 'L', padX - 8, y + 4);
+  }
+
+  // X labels
+  ctx.textAlign = 'center';
+  dates.forEach((d, i) => {
+    const x = padX + i * (w / (dates.length - 1));
+    ctx.fillText(d.slice(5).replace('-','/'), x, canvas.height/2 - 10);
+  });
+
+  // Line + Area
+  ctx.strokeStyle = '#3b82f6'; ctx.lineWidth = 2; ctx.beginPath();
+  values.forEach((v, i) => {
+    const x = padX + i * (w / (dates.length - 1));
+    const y = padY + h - (v/maxVal)*h;
+    i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+  });
+  ctx.stroke();
+  ctx.lineTo(padX + w, padY + h);
+  ctx.lineTo(padX, padY + h);
+  ctx.fillStyle = 'rgba(59,130,246,0.3)'; ctx.fill();
+
+  // Tooltip
+  const tip = document.getElementById('trendTip');
+  canvas.onmousemove = e => {
+    const x = e.clientX - rect.left;
+    const i = Math.round((x - padX) / (w / (dates.length - 1)));
+    if (i >= 0 && i < dates.length) {
+      tip.style.opacity = 1;
+      tip.style.left = (e.clientX + 10) + 'px';
+      tip.style.top = (e.clientY + 10) + 'px';
+      tip.textContent = `${dates[i].slice(5).replace('-','/')}: ${formatL(values[i])}`;
+    }
+  };
+  canvas.onmouseleave = () => tip.style.opacity = 0;
+}
+
+function drawRegionChart(data) {
+  const canvas = document.getElementById('region');
+  const ctx = canvas.getContext('2d');
+  const rect = canvas.getBoundingClientRect();
+  canvas.width = rect.width * 2;
+  canvas.height = rect.height * 2;
+  ctx.scale(2, 2);
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  const regions = {};
+  data.forEach(d => regions[d.region] = (regions[d.region] || 0) + d.premium);
+  const entries = Object.entries(regions).sort((a,b) => b[1] - a[1]);
+  if (entries.length === 0) return;
+
+  const maxVal = Math.max(...entries.map(e => e[1])) * 1.1;
+  const padX = 80, padY = 40;
+  const w = canvas.width/2 - padX - 20;
+  const h = canvas.height/2 - padY*2;
+  const barW = w / entries.length * 0.7;
+  const gap = w / entries.length * 0.3;
+
+  ctx.fillStyle = '#1e293b'; ctx.fillRect(0,0,canvas.width/2,canvas.height/2);
+
+  // Y axis
+  ctx.strokeStyle = '#334155'; ctx.fillStyle = '#94a3b8'; ctx.textAlign = 'right';
+  for(let i = 0; i <= 5; i++) {
+    const y = padY + i * (h/5);
+    ctx.beginPath(); ctx.moveTo(padX, y); ctx.lineTo(padX + w, y); ctx.stroke();
+    ctx.fillText((maxVal*(5-i)/5/100000).toFixed(1) + 'L', padX - 8, y + 4);
+  }
+
+  // Bars + labels
+  entries.forEach(([region, val], i) => {
+    const x = padX + i * (barW + gap) + gap/2;
+    const barH = (val/maxVal) * h;
+    const y = padY + h - barH;
+
+    ctx.fillStyle = '#10b981';
+    ctx.fillRect(x, y, barW, barH);
+
+    // Region name (rotated)
+    ctx.save();
+    ctx.translate(x + barW/2, padY + h + 20);
+    ctx.rotate(-Math.PI/4);
+    ctx.fillStyle = '#94a3b8';
+    ctx.textAlign = 'right';
+    ctx.fillText(region, 0, 0);
+    ctx.restore();
+
+    // Value on bar
+    ctx.fillStyle = '#e2e8f0';
+    ctx.textAlign = 'center';
+    ctx.fillText(formatL(val), x + barW/2, y - 8);
+  });
+
+  const tip = document.getElementById('regionTip');
+  canvas.onmousemove = e => {
+    const x = e.clientX - rect.left;
+    const i = Math.floor((x - padX) / (barW + gap));
+    if (i >= 0 && i < entries.length) {
+      tip.style.opacity = 1;
+      tip.style.left = (e.clientX + 10) + 'px';
+      tip.style.top = (e.clientY + 10) + 'px';
+      tip.textContent = `${entries[i][0]}: ${formatL(entries[i][1])}`;
+    }
+  };
+  canvas.onmouseleave = () => tip.style.opacity = 0;
+}
+
+// Initialize
+document.addEventListener('DOMContentLoaded', () => {
+  allData = parseData();
+  filterAndUpdate();
+
+  document.querySelectorAll('button[data-month]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('button[data-month]').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      filterAndUpdate();
+    });
+  });
+
+  ['regionSelect', 'search'].forEach(id => {
+    document.getElementById(id).addEventListener('input', filterAndUpdate);
+    document.getElementById(id).addEventListener('change', filterAndUpdate);
+  });
+
+  // Redraw charts on resize
+  window.addEventListener('resize', () => {
+    drawTrendChart(allData.filter(d => true));
+    drawRegionChart(allData.filter(d => true));
+  });
+});
+</script>
+</body>
+</html>
