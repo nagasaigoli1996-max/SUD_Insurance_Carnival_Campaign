@@ -1309,11 +1309,11 @@ function updateRMTable(data) {
   const list = Object.entries(regions).map(([region, total]) => {
     let club = '', reward = '', cls = '';
     if (total >= 2500000) {
-      club = "Chairman Elite Club"; reward = "Trophy of honor from Chairman & Invitation to National training meet for RM +2 members"; cls = "elite-club-rm";
+      club = "Chairman Elite Club"; reward = "Trophy of Honor from Chairman & Invitation to National Training Meet (RM + 2 from Region"; cls = "elite-club-rm";
     } else if (total >= 2000000) {
-      club = "Chairman's Club"; reward = "Trophy of honor from Chairman & Invitation to National training meet for RM +1 member"; cls = "chairman-club-rm";
+      club = "Chairman's Club"; reward = "Trophy of Honor from Chairman & Invitation to National training meet (RM + 1 from Region"; cls = "chairman-club-rm";
     } else if (total >= 1500000) {
-      club = "GM club"; reward = "Trophy of honor from GM & Invitation to National training meet"; cls = "gm-club-rm";
+      club = "GM club"; reward = "Trophy of Honor from GM & Invitation to National Training Meet"; cls = "gm-club-rm";
     } else {
       club = "Not Qualified"; reward = "-"; cls = "";
     }
@@ -1340,11 +1340,11 @@ function updateBranchTable(data) {
   const list = Object.values(branches).map(b => {
     let club = '', reward = '', cls = '';
     if (b.total >= 600000) {
-      club = "Chairman Elite Club"; reward = "Trophy of honor from Chairman & Invitation to National training meet + 2 people"; cls = "elite-club";
+      club = "Chairman Elite Club"; reward = "Trophy of Honor from Chairman & Invitation to National training meet (2 from Branch)"; cls = "elite-club";
     } else if (b.total >= 400000) {
-      club = "Chairman's Club"; reward = "Trophy of honor from Chairman & Invitation to National training meet"; cls = "chairman-club";
+      club = "Chairman's Club"; reward = "Trophy of Honor from Chairman & Invitation to National Training Meet"; cls = "chairman-club";
     } else if (b.total >= 200000) {
-      club = "GM Club"; reward = "Trophy of honor from GM & Invitation to National training meet"; cls = "gm-club";
+      club = "GM Club"; reward = "Trophy of Honor from GM & Invitation to National training meet"; cls = "gm-club";
     } else if (b.total >= 100000) {
       club = "RM Club"; reward = "Plaque of Honor from RM"; cls = "rm-club";
     } else if (b.total > 50000) {
@@ -1514,3 +1514,4 @@ document.addEventListener('DOMContentLoaded', () => {
 </script>
 </body>
 </html>
+
