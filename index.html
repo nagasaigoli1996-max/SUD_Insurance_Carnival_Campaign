@@ -1309,9 +1309,9 @@ function updateRMTable(data) {
   const list = Object.entries(regions).map(([region, total]) => {
     let club = '', reward = '', cls = '';
     if (total >= 2500000) {
-      club = "Chairman Elite Club"; reward = "Trophy of Honor from Chairman & Invitation to National Training Meet (RM + 2 from Region"; cls = "elite-club-rm";
+      club = "Chairman Elite Club"; reward = "Trophy of Honor from Chairman & Invitation to National Training Meet (RM + 2 from Region)"; cls = "elite-club-rm";
     } else if (total >= 2000000) {
-      club = "Chairman's Club"; reward = "Trophy of Honor from Chairman & Invitation to National training meet (RM + 1 from Region"; cls = "chairman-club-rm";
+      club = "Chairman's Club"; reward = "Trophy of Honor from Chairman & Invitation to National training meet (RM + 1 from Region)"; cls = "chairman-club-rm";
     } else if (total >= 1500000) {
       club = "GM club"; reward = "Trophy of Honor from GM & Invitation to National Training Meet"; cls = "gm-club-rm";
     } else {
@@ -1514,4 +1514,5 @@ document.addEventListener('DOMContentLoaded', () => {
 </script>
 </body>
 </html>
+
 
