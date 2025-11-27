@@ -38,7 +38,6 @@
   </style>
 </head>
 <body>
-
 <div class="dashboard">
   <div class="header">
     <div>
@@ -53,25 +52,21 @@
       <input type="text" id="search" placeholder="Search branch or region...">
     </div>
   </div>
-
   <div class="kpi-grid">
-    <div class="kpi"><h3 id="total">₹0L</h3><p>Total Sales</p></div>
+    <div class="kpi"><h3 id="total">₹0.00L</h3><p>Total Sales</p></div>
     <div class="kpi"><h3 id="eliteBranches">0</h3><p>Chairman Elite Club (BM)</p></div>
     <div class="kpi"><h3 id="eliteRMs">0</h3><p>Chairman Elite Club (RM)</p></div>
   </div>
-
   <div class="chart-box">
     <h2 style="margin-bottom:16px;color:#e2e8f0">Revenue Trend (Daily)</h2>
     <canvas id="trend"></canvas>
     <div id="trendTip" class="tooltip"></div>
   </div>
-
   <div class="chart-box">
     <h2 style="margin-bottom:16px;color:#e2e8f0">Sales by Region</h2>
     <canvas id="region"></canvas>
     <div id="regionTip" class="tooltip"></div>
   </div>
-
   <h2 class="section-title">Regional Manager Clubs & Rewards</h2>
   <div class="chart-box">
     <table id="rmTable">
@@ -86,7 +81,6 @@
       <tbody></tbody>
     </table>
   </div>
-
   <h2 class="section-title">Branch Manager Clubs & Rewards</h2>
   <div class="chart-box">
     <table id="branchTable">
@@ -152,7 +146,7 @@ const CSV = `5510,Gummaghatta,APGB,Anantapuramu,11/19/2025,36000
 5615,Kadapa-RavindraNagar,APGB,Kadapa,10/7/2025,21951
 5616,Proddatur-GandhiRoad,APGB,Kadapa,9/25/2025,13259
 5620,Kadapa-AmeenPeerDarga,APGB,Kadapa,9/29/2025,36000
-5621,Jammalamadugu- NewMarketCentre,APGB,Kadapa,10/7/2025,36000
+5621,Jammalamadugu-NewMarketCentre,APGB,Kadapa,10/7/2025,36000
 5621,Jammalamadugu-NewMarketCentre,APGB,Kadapa,10/8/2025,36000
 5623,Kadapa-Mariapuram,APGB,Kadapa,9/25/2025,50000
 5624,Kamalapuram X-Roads,APGB,Kadapa,11/5/2025,50000
@@ -253,7 +247,7 @@ const CSV = `5510,Gummaghatta,APGB,Anantapuramu,11/19/2025,36000
 5733,Chityala,APGB,Kurnool,9/29/2025,40000
 5735,Kurnool-BabaBrindavanNagar,APGB,Kurnool,9/9/2025,36000
 5735,Kurnool-BabaBrindavanNagar,APGB,Kurnool,9/18/2025,36000
-5736,Kurnool-KisanNagar,APGB,Kurnool,9/22/2025,36000
+5736,Kurnool-Kisan Nagar,APGB,Kurnool,9/22/2025,36000
 5736,Kurnool-KisanNagar,APGB,Kurnool,11/5/2025,50000
 5737,Kappatralla,APGB,Kurnool,9/15/2025,20000
 5737,Kappatralla,APGB,Kurnool,9/18/2025,60000
@@ -1246,6 +1240,14 @@ const CSV = `5510,Gummaghatta,APGB,Anantapuramu,11/19/2025,36000
 7756,75Tyallur,APGB,Narasaraopet,11/11/2025,51000
 7756,75Tyallur,APGB,Narasaraopet,11/12/2025,10000`;
 
+// Helper functions for formatting with 2 decimals
+function formatL(val) { 
+  return `₹${(val/100000).toFixed(2)}L`; 
+}
+function formatNumber(val) { 
+  return `₹${val.toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`; 
+}
+
 function parseData() {
   const rows = CSV.trim().split('\n');
   const data = [];
@@ -1272,21 +1274,17 @@ function parseData() {
   return data;
 }
 
-function formatL(val) { return `₹${(val/100000).toFixed(1)}L`; }
-
 let allData = [];
 
 function filterAndUpdate() {
   const month = document.querySelector('button.active').dataset.month;
   const region = document.getElementById('regionSelect').value;
   const search = document.getElementById('search').value.toLowerCase();
-
   let filtered = allData.filter(d =>
     (month === 'All' || d.month === month) &&
     (!region || d.region === region) &&
     (d.branch.toLowerCase().includes(search) || d.region.toLowerCase().includes(search))
   );
-
   updateKPIs(filtered);
   drawTrendChart(filtered);
   drawRegionChart(filtered);
@@ -1297,13 +1295,10 @@ function filterAndUpdate() {
 function updateKPIs(data) {
   const total = data.reduce((s,i)=>s+i.premium,0);
   document.getElementById('total').textContent = formatL(total);
-
   const branchTotals = {}; data.forEach(d => branchTotals[d.branch] = (branchTotals[d.branch]||0) + d.premium);
   const regionTotals = {}; data.forEach(d => regionTotals[d.region] = (regionTotals[d.region]||0) + d.premium);
-
   const eliteBM = Object.values(branchTotals).filter(v => v >= 600000).length;
   const eliteRM = Object.values(regionTotals).filter(v => v >= 2500000).length;
-
   document.getElementById('eliteBranches').textContent = eliteBM;
   document.getElementById('eliteRMs').textContent = eliteRM;
 }
@@ -1311,7 +1306,6 @@ function updateKPIs(data) {
 function updateRMTable(data) {
   const regions = {};
   data.forEach(d => regions[d.region] = (regions[d.region]||0) + d.premium);
-
   const list = Object.entries(regions).map(([region, total]) => {
     let club = '', reward = '', cls = '';
     if (total >= 2500000) {
@@ -1325,7 +1319,6 @@ function updateRMTable(data) {
     }
     return { region, total, club, reward, cls };
   }).sort((a,b) => b.total - a.total);
-
   const tbody = document.querySelector('#rmTable tbody');
   tbody.innerHTML = '';
   list.forEach(r => {
@@ -1344,7 +1337,6 @@ function updateBranchTable(data) {
     branches[d.branch] = (branches[d.branch] || {branch:d.branch, region:d.region, bank:d.bank, total:0});
     branches[d.branch].total += d.premium;
   });
-
   const list = Object.values(branches).map(b => {
     let club = '', reward = '', cls = '';
     if (b.total >= 600000) {
@@ -1362,7 +1354,6 @@ function updateBranchTable(data) {
     }
     return { ...b, club, reward, cls };
   }).sort((a,b) => b.total - a.total);
-
   const tbody = document.querySelector('#branchTable tbody');
   tbody.innerHTML = '';
   list.forEach(b => {
@@ -1375,14 +1366,11 @@ function updateBranchTable(data) {
   });
 }
 
-// FIXED CHARTS — NOW WORKING!
 function drawTrendChart(data) {
   const canvas = document.getElementById('trend');
   const ctx = canvas.getContext('2d');
   const rect = canvas.getBoundingClientRect();
-  canvas.width = rect.width * 2;
-  canvas.height = rect.height * 2;
-  ctx.scale(2, 2);
+  canvas.width = rect.width * 2; canvas.height = rect.height * 2; ctx.scale(2, 2);
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
   const daily = {};
@@ -1399,25 +1387,21 @@ function drawTrendChart(data) {
   const w = canvas.width/2 - padX*2;
   const h = canvas.height/2 - padY*2;
 
-  // Background
   ctx.fillStyle = '#1e293b'; ctx.fillRect(0,0,canvas.width/2,canvas.height/2);
 
-  // Grid + Y labels
   ctx.strokeStyle = '#334155'; ctx.fillStyle = '#94a3b8'; ctx.textAlign = 'right';
   for(let i = 0; i <= 5; i++) {
     const y = padY + i * (h/5);
     ctx.beginPath(); ctx.moveTo(padX, y); ctx.lineTo(padX + w, y); ctx.stroke();
-    ctx.fillText((maxVal*(5-i)/5/100000).toFixed(1) + 'L', padX - 8, y + 4);
+    ctx.fillText((maxVal*(5-i)/5/100000).toFixed(2) + 'L', padX - 8, y + 4);
   }
 
-  // X labels
   ctx.textAlign = 'center';
   dates.forEach((d, i) => {
     const x = padX + i * (w / (dates.length - 1));
     ctx.fillText(d.slice(5).replace('-','/'), x, canvas.height/2 - 10);
   });
 
-  // Line + Area
   ctx.strokeStyle = '#3b82f6'; ctx.lineWidth = 2; ctx.beginPath();
   values.forEach((v, i) => {
     const x = padX + i * (w / (dates.length - 1));
@@ -1429,7 +1413,6 @@ function drawTrendChart(data) {
   ctx.lineTo(padX, padY + h);
   ctx.fillStyle = 'rgba(59,130,246,0.3)'; ctx.fill();
 
-  // Tooltip
   const tip = document.getElementById('trendTip');
   canvas.onmousemove = e => {
     const x = e.clientX - rect.left;
@@ -1448,9 +1431,7 @@ function drawRegionChart(data) {
   const canvas = document.getElementById('region');
   const ctx = canvas.getContext('2d');
   const rect = canvas.getBoundingClientRect();
-  canvas.width = rect.width * 2;
-  canvas.height = rect.height * 2;
-  ctx.scale(2, 2);
+  canvas.width = rect.width * 2; canvas.height = rect.height * 2; ctx.scale(2, 2);
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
   const regions = {};
@@ -1467,24 +1448,20 @@ function drawRegionChart(data) {
 
   ctx.fillStyle = '#1e293b'; ctx.fillRect(0,0,canvas.width/2,canvas.height/2);
 
-  // Y axis
   ctx.strokeStyle = '#334155'; ctx.fillStyle = '#94a3b8'; ctx.textAlign = 'right';
   for(let i = 0; i <= 5; i++) {
     const y = padY + i * (h/5);
     ctx.beginPath(); ctx.moveTo(padX, y); ctx.lineTo(padX + w, y); ctx.stroke();
-    ctx.fillText((maxVal*(5-i)/5/100000).toFixed(1) + 'L', padX - 8, y + 4);
+    ctx.fillText((maxVal*(5-i)/5/100000).toFixed(2) + 'L', padX - 8, y + 4);
   }
 
-  // Bars + labels
   entries.forEach(([region, val], i) => {
     const x = padX + i * (barW + gap) + gap/2;
     const barH = (val/maxVal) * h;
     const y = padY + h - barH;
-
     ctx.fillStyle = '#10b981';
     ctx.fillRect(x, y, barW, barH);
 
-    // Region name (rotated)
     ctx.save();
     ctx.translate(x + barW/2, padY + h + 20);
     ctx.rotate(-Math.PI/4);
@@ -1493,7 +1470,6 @@ function drawRegionChart(data) {
     ctx.fillText(region, 0, 0);
     ctx.restore();
 
-    // Value on bar
     ctx.fillStyle = '#e2e8f0';
     ctx.textAlign = 'center';
     ctx.fillText(formatL(val), x + barW/2, y - 8);
@@ -1513,7 +1489,6 @@ function drawRegionChart(data) {
   canvas.onmouseleave = () => tip.style.opacity = 0;
 }
 
-// Initialize
 document.addEventListener('DOMContentLoaded', () => {
   allData = parseData();
   filterAndUpdate();
@@ -1531,7 +1506,6 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById(id).addEventListener('change', filterAndUpdate);
   });
 
-  // Redraw charts on resize
   window.addEventListener('resize', () => {
     drawTrendChart(allData.filter(d => true));
     drawRegionChart(allData.filter(d => true));
@@ -1539,5 +1513,4 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 </script>
 </body>
-
 </html>
