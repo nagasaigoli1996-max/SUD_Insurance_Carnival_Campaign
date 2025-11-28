@@ -1278,7 +1278,11 @@ function parseData() {
     if (p.length < 6) return;
     const premium = parseFloat(p[5].replace(/[" ,]/g,''));
     if (isNaN(premium)) return;
-    const date = new Date(p[4].trim());
+    const dateParts = p[4].trim().split('/');
+    const year = dateParts[2];
+    const month = dateParts[1] - 1;  // JS months are 0-based
+    const day = dateParts[0];
+    const date = new Date(year, month, day);
     const month = date.toLocaleString('default', {month:'long'});
     if (['October','November'].includes(month)) {
       const item = { branch: p[1].trim(), bank: p[2].trim(), region: p[3].trim(), date, premium, month };
@@ -1420,7 +1424,8 @@ function drawTrendChart(data) {
   ctx.textAlign = 'center';
   dates.forEach((d, i) => {
     const x = padX + i * (w / (dates.length - 1));
-    ctx.fillText(d.slice(5).replace('-','/'), x, canvas.height/2 - 10);
+    const displayDate = d.slice(8,10) + '/' + d.slice(5,7);  // DD/MM
+    ctx.fillText(displayDate, x, canvas.height/2 - 10);
   });
 
   ctx.strokeStyle = '#3b82f6'; ctx.lineWidth = 2; ctx.beginPath();
@@ -1442,7 +1447,8 @@ function drawTrendChart(data) {
       tip.style.opacity = 1;
       tip.style.left = (e.clientX + 10) + 'px';
       tip.style.top = (e.clientY + 10) + 'px';
-      tip.textContent = `${dates[i].slice(5).replace('-','/')}: ${formatL(values[i])}`;
+      const tipDate = dates[i].slice(8,10) + '/' + dates[i].slice(5,7);
+      tip.textContent = `${tipDate}: ${formatL(values[i])}`;
     }
   };
   canvas.onmouseleave = () => tip.style.opacity = 0;
@@ -1535,6 +1541,7 @@ document.addEventListener('DOMContentLoaded', () => {
 </script>
 </body>
 </html>
+
 
 
 
