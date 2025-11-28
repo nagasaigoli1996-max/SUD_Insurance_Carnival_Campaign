@@ -1261,57 +1261,36 @@ const CSV = `5510,Gummaghatta,APGB,Anantapuramu,11/19/2025,36000
 6258,Priyaagraharam,APGB,Srikakulam,11/27/2025,34551
 6350,Garbham,APGB,Vizianagaram,11/27/2025,36000`;
 
-// Helper functions for formatting with 2 decimals
-function formatL(val) { 
-  return `₹${(val/100000).toFixed(2)}L`; 
-}
-function formatNumber(val) { 
-  return `₹${val.toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`; 
-}
-
 function parseData() {
-  const rows = CSV.trim().split('\n');
+  const lines = CSV.trim().split('\n');
   const data = [];
   const regions = new Set();
-
-  rows.forEach(r => {
-    const p = r.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/);
-    if (p.length < 6) return;
-
-    const premium = parseFloat(p[5].replace(/[" ,]/g, ''));
-    if (isNaN(premium)) return;
-
-    const dateParts = p[4].trim().split('/');
-    const year = dateParts[2];
-    const monthIndex = dateParts[1] - 1; // JS months are 0-based
-    const day = dateParts[0];
-
-    const date = new Date(year, monthIndex, day);
-    const monthName = date.toLocaleString('default', { month: 'long' });
-
-    if (['October', 'November'].includes(monthName)) {
-      const item = {
-        branch: p[1].trim(),
-        bank: p[2].trim(),
-        region: p[3].trim(),
-        date,
-        premium,
-        month: monthName
-      };
-
-      data.push(item);
-      regions.add(item.region);
+  lines.forEach(line => {
+    const [id, branch, bank, region, date, premium] = line.split(',');
+    const d = new Date(date);
+    // Filter for OND (October, November, December). Month 9 is October (0-indexed).
+    if (d.getFullYear() === 2025 && d.getMonth() >= 9) {
+      data.push({
+        id: id,
+        branch: branch,
+        bank: bank,
+        region: region,
+        date: date,
+        month: ['October', 'November', 'December'][d.getMonth() - 9],
+        premium: parseInt(premium),
+        rawDate: d
+      });
+      regions.add(region);
     }
   });
 
-  return { data, regions: [...regions] };
-}
-    }
-  });
+  // Populate region filter
   const select = document.getElementById('regionSelect');
+  select.innerHTML = '<option value="">All Regions</option>';
   [...regions].sort().forEach(r => {
     const opt = document.createElement('option');
-    opt.value = r; opt.textContent = r;
+    opt.value = r;
+    opt.textContent = r;
     select.appendChild(opt);
   });
   return data;
@@ -1319,15 +1298,21 @@ function parseData() {
 
 let allData = [];
 
+function formatL(num) {
+  return '₹' + (num / 100000).toFixed(2) + 'L';
+}
+
 function filterAndUpdate() {
   const month = document.querySelector('button.active').dataset.month;
   const region = document.getElementById('regionSelect').value;
   const search = document.getElementById('search').value.toLowerCase();
+
   let filtered = allData.filter(d =>
     (month === 'All' || d.month === month) &&
     (!region || d.region === region) &&
     (d.branch.toLowerCase().includes(search) || d.region.toLowerCase().includes(search))
   );
+
   updateKPIs(filtered);
   drawTrendChart(filtered);
   drawRegionChart(filtered);
@@ -1336,40 +1321,57 @@ function filterAndUpdate() {
 }
 
 function updateKPIs(data) {
-  const total = data.reduce((s,i)=>s+i.premium,0);
+  const total = data.reduce((s, i) => s + i.premium, 0);
   document.getElementById('total').textContent = formatL(total);
-  const branchTotals = {}; data.forEach(d => branchTotals[d.branch] = (branchTotals[d.branch]||0) + d.premium);
-  const regionTotals = {}; data.forEach(d => regionTotals[d.region] = (regionTotals[d.region]||0) + d.premium);
-  const eliteBM = Object.values(branchTotals).filter(v => v >= 600000).length;
-  const eliteRM = Object.values(regionTotals).filter(v => v >= 2500000).length;
+
+  const branchTotals = {};
+  data.forEach(d => branchTotals[d.branch] = (branchTotals[d.branch] || 0) + d.premium);
+
+  const regionTotals = {};
+  data.forEach(d => regionTotals[d.region] = (regionTotals[d.region] || 0) + d.premium);
+
+  // Elite Club Qualifier Targets
+  const ELITE_BRANCH_QUALIFIER = 600000;
+  const ELITE_RM_QUALIFIER = 2500000;
+
+  const eliteBM = Object.values(branchTotals).filter(v => v >= ELITE_BRANCH_QUALIFIER).length;
+  const eliteRM = Object.values(regionTotals).filter(v => v >= ELITE_RM_QUALIFIER).length;
+
   document.getElementById('eliteBranches').textContent = eliteBM;
   document.getElementById('eliteRMs').textContent = eliteRM;
 }
 
 function updateRMTable(data) {
   const regions = {};
-  data.forEach(d => regions[d.region] = (regions[d.region]||0) + d.premium);
+  data.forEach(d => regions[d.region] = (regions[d.region] || 0) + d.premium);
+
   const list = Object.entries(regions).map(([region, total]) => {
-    let club = '', reward = '', cls = '';
+    let club = "Not Qualified";
+    let reward = "-";
+    let cls = "";
+
     if (total >= 2500000) {
-      club = "Chairman Elite Club"; reward = "Trophy of Honor from Chairman & Invitation to National Training Meet (RM + 2 from Region)"; cls = "elite-club-rm";
+      club = "Chairman's Elite Club (RM)";
+      reward = "Trophy of Honor from Chairman & Invitation to National Training Meet (RM + 2 from Region)";
+      cls = "elite-club-rm";
     } else if (total >= 2000000) {
-      club = "Chairman's Club"; reward = "Trophy of Honor from Chairman & Invitation to National training meet (RM + 1 from Region)"; cls = "chairman-club-rm";
+      club = "Chairman's Club";
+      reward = "Trophy of Honor from Chairman & Invitation to National Training Meet (RM + 1 from Region)";
+      cls = "chairman-club-rm";
     } else if (total >= 1500000) {
-      club = "GM club"; reward = "Trophy of Honor from GM & Invitation to National Training Meet"; cls = "gm-club-rm";
-    } else {
-      club = "Not Qualified"; reward = "-"; cls = "";
+      club = "GM Club";
+      reward = "Trophy of Honor from General Manager & Invitaion to National Training Meet";
+      cls = "gm-club-rm";
     }
+
     return { region, total, club, reward, cls };
-  }).sort((a,b) => b.total - a.total);
+  }).sort((a, b) => b.total - a.total);
+
   const tbody = document.querySelector('#rmTable tbody');
   tbody.innerHTML = '';
   list.forEach(r => {
     const tr = document.createElement('tr');
-    tr.innerHTML = `<td><strong>${r.region}</strong></td>
-      <td style="color:#10b981;font-weight:bold">${formatL(r.total)}</td>
-      <td><span class="rm-reward ${r.cls}">${r.club}</span></td>
-      <td style="font-size:0.9rem">${r.reward}</td>`;
+    tr.innerHTML = `<td>${r.region}</td> <td style="font-weight:bold;color:#10b981">${formatL(r.total)}</td> <td><span class="reward ${r.cls}">${r.club}</span></td> <td style="font-size:0.9rem">${r.reward}</td>`;
     tbody.appendChild(tr);
   });
 }
@@ -1377,34 +1379,48 @@ function updateRMTable(data) {
 function updateBranchTable(data) {
   const branches = {};
   data.forEach(d => {
-    branches[d.branch] = (branches[d.branch] || {branch:d.branch, region:d.region, bank:d.bank, total:0});
-    branches[d.branch].total += d.premium;
+    const key = d.branch;
+    if (!branches[key]) {
+      branches[key] = { branch: d.branch, region: d.region, bank: d.bank, total: 0 };
+    }
+    branches[key].total += d.premium;
   });
+
   const list = Object.values(branches).map(b => {
-    let club = '', reward = '', cls = '';
+    let club, reward, cls;
     if (b.total >= 600000) {
-      club = "Chairman Elite Club"; reward = "Trophy of Honor from Chairman & Invitation to National training meet (2 from Branch)"; cls = "elite-club";
+      club = "Chairman Elite Club";
+      reward = "Trophy of Honor from Chairman & Invitaion to National Training Meet (2 from Branch)";
+      cls = "elite-club";
     } else if (b.total >= 400000) {
-      club = "Chairman's Club"; reward = "Trophy of Honor from Chairman & Invitation to National Training Meet"; cls = "chairman-club";
+      club = "Chairman's Club";
+      reward = "Trophy of Honor from Chairman & Invitation to National Training Meet";
+      cls = "chairman-club";
     } else if (b.total >= 200000) {
-      club = "GM Club"; reward = "Trophy of Honor from GM & Invitation to National training meet"; cls = "gm-club";
+      club = "GM Club";
+      reward = "Trophy of Honor from General Manager & Invitation to National Training Meet";
+      cls = "gm-club";
     } else if (b.total >= 100000) {
-      club = "RM Club"; reward = "Plaque of Honor from RM"; cls = "rm-club";
+      club = "RM Club";
+      reward = "Plaque of Honor from Regional Manager";
+      cls = "rm-club";
     } else if (b.total > 50000) {
-      club = "Insurance Club"; reward = "Certificate of appreciation from Regional Manager"; cls = "insurance";
+      club = "Insurance Club";
+      reward = "Certificate of Appreciation from Regional Manager";
+      cls = "insurance";
     } else {
-      club = "Not Qualified"; reward = "-"; cls = "";
+      club = "Not Qualified";
+      reward = "-";
+      cls = "";
     }
     return { ...b, club, reward, cls };
-  }).sort((a,b) => b.total - a.total);
+  }).sort((a, b) => b.total - a.total);
+
   const tbody = document.querySelector('#branchTable tbody');
   tbody.innerHTML = '';
   list.forEach(b => {
     const tr = document.createElement('tr');
-    tr.innerHTML = `<td>${b.branch}</td><td>${b.region}</td><td>${b.bank}</td>
-      <td style="text-align:right;font-weight:bold;color:#10b981">${formatL(b.total)}</td>
-      <td><span class="reward ${b.cls}">${b.club}</span></td>
-      <td style="font-size:0.9rem">${b.reward}</td>`;
+    tr.innerHTML = `<td>${b.branch}</td><td>${b.region}</td><td>${b.bank}</td> <td style="text-align:right;font-weight:bold;color:#10b981">${formatL(b.total)}</td> <td><span class="reward ${b.cls}">${b.club}</span></td> <td style="font-size:0.9rem">${b.reward}</td>`;
     tbody.appendChild(tr);
   });
 }
@@ -1413,80 +1429,104 @@ function drawTrendChart(data) {
   const canvas = document.getElementById('trend');
   const ctx = canvas.getContext('2d');
   const rect = canvas.getBoundingClientRect();
-  canvas.width = rect.width * 2; canvas.height = rect.height * 2; ctx.scale(2, 2);
+
+  // Clear canvas
+  canvas.width = rect.width;
+  canvas.height = rect.height;
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-  const daily = {};
+  const padX = 50;
+  const padY = 20;
+  const w = canvas.width - 2 * padX;
+  const h = canvas.height - 2 * padY;
+
+  const dailyTotals = {};
   data.forEach(d => {
-    const key = d.date.toISOString().slice(0,10);
-    daily[key] = (daily[key] || 0) + d.premium;
+    const dateStr = d.date;
+    dailyTotals[dateStr] = (dailyTotals[dateStr] || 0) + d.premium;
   });
-  const dates = Object.keys(daily).sort();
-  const values = dates.map(d => daily[d]);
-  if (values.length === 0) return;
 
-  const maxVal = Math.max(...values) * 1.1;
-  const padX = 60, padY = 40;
-  const w = canvas.width/2 - padX*2;
-  const h = canvas.height/2 - padY*2;
+  const dates = Object.keys(dailyTotals).sort((a, b) => new Date(a) - new Date(b));
+  if (dates.length === 0) return;
 
-  ctx.fillStyle = '#1e293b'; ctx.fillRect(0,0,canvas.width/2,canvas.height/2);
+  const maxVal = Math.max(...Object.values(dailyTotals));
+  const stepY = h / 4;
+  const labelStep = Math.ceil(maxVal / 4);
 
-  ctx.strokeStyle = '#334155'; ctx.fillStyle = '#94a3b8'; ctx.textAlign = 'right';
-  for(let i = 0; i <= 5; i++) {
-    const y = padY + i * (h/5);
-    ctx.beginPath(); ctx.moveTo(padX, y); ctx.lineTo(padX + w, y); ctx.stroke();
-    ctx.fillText((maxVal*(5-i)/5/100000).toFixed(2) + 'L', padX - 8, y + 4);
+  // Draw Y-axis grid lines and labels
+  ctx.strokeStyle = '#334155';
+  ctx.fillStyle = '#94a3b8';
+  ctx.font = '12px system-ui';
+  ctx.textAlign = 'right';
+
+  for (let i = 0; i <= 4; i++) {
+    const y = padY + h - i * stepY;
+    ctx.beginPath();
+    ctx.moveTo(padX, y);
+    ctx.lineTo(padX + w, y);
+    ctx.stroke();
+
+    const label = formatL(i * labelStep);
+    ctx.fillText(label, padX - 5, y + 4);
   }
 
-ctx.textAlign = 'center';
+  // Draw X-axis labels
+  ctx.fillStyle = '#94a3b8';
+  ctx.textAlign = 'center';
 
-dates.forEach((d, i) => {
-  const x = padX + i * (w / (dates.length - 1));
-  const displayDate = d.slice(8, 10) + '/' + d.slice(5, 7); // DD/MM format
-  ctx.fillText(displayDate, x, canvas.height / 2 - 10);
-});
+  const dateLabels = dates.filter((_, i) => i % Math.ceil(dates.length / 10) === 0);
+  dates.forEach((date, i) => {
+    const x = padX + i * (w / (dates.length - 1));
+    if (dateLabels.includes(date) || i === dates.length - 1) {
+      ctx.fillText(date.slice(0, 5), x, padY + h + 15);
+    }
+  });
 
-// Draw the line
-ctx.strokeStyle = '#3b82f6';
-ctx.lineWidth = 2;
-ctx.beginPath();
-values.forEach((v, i) => {
-  const x = padX + i * (w / (dates.length - 1));
-  const y = padY + h - (v / maxVal) * h;
-  if (i === 0) {
-    ctx.moveTo(x, y);
-  } else {
-    ctx.lineTo(x, y);
-  }
-});
-ctx.stroke();
+  // Draw the line and fill area
+  ctx.beginPath();
+  ctx.lineWidth = 2;
+  ctx.strokeStyle = '#3b82f6';
+  ctx.shadowColor = 'rgba(59, 130, 246, 0.5)';
+  ctx.shadowBlur = 10;
 
-// Fill area under the line
-ctx.lineTo(padX + w, padY + h);
-ctx.lineTo(padX, padY + h);
-ctx.closePath();
-ctx.fillStyle = 'rgba(59, 130, 246, 0.3)';
-ctx.fill();
+  dates.forEach((date, i) => {
+    const val = dailyTotals[date] || 0;
+    const x = padX + i * (w / (dates.length - 1));
+    // FIX: Changed 'v' to 'val' to fix ReferenceError
+    const y = padY + h - (val / maxVal) * h; 
 
-// Tooltip
-const tip = document.getElementById('trendTip');
-canvas.onmousemove = e => {
-  const x = e.clientX - rect.left;
-  const i = Math.round((x - padX) / (w / (dates.length - 1)));
+    if (i === 0) {
+      ctx.moveTo(x, y);
+    } else {
+      ctx.lineTo(x, y);
+    }
+  });
+  ctx.stroke();
 
-  if (i >= 0 && i < dates.length) {
-    tip.style.opacity = 1;
-    tip.style.left = (e.clientX + 10) + 'px';
-    tip.style.top = (e.clientY + 10) + 'px';
-    const tipDate = dates[i].slice(8, 10) + '/' + dates[i].slice(5, 7);
-    tip.textContent = `${tipDate}: ${formatL(values[i])}`;
-  }
-};
+  // Reset shadow for fill
+  ctx.shadowBlur = 0;
 
-canvas.onmouseleave = () => {
-  tip.style.opacity = 0;
-};
+  // Fill area under the line
+  ctx.lineTo(padX + w, padY + h);
+  ctx.lineTo(padX, padY + h);
+  ctx.closePath();
+  ctx.fillStyle = 'rgba(59, 130, 246, 0.3)';
+  ctx.fill();
+
+  // Tooltip
+  const tip = document.getElementById('trendTip');
+  canvas.onmousemove = e => {
+    const x = e.clientX - rect.left;
+    const i = Math.round((x - padX) / (w / (dates.length - 1)));
+    if (i >= 0 && i < dates.length) {
+      tip.style.opacity = 1;
+      tip.style.left = (e.clientX + 10) + 'px';
+      tip.style.top = (e.clientY + 10) + 'px';
+      const tipDate = dates[i];
+      const tipValue = dailyTotals[tipDate] || 0;
+      tip.textContent = `${tipDate}: ${formatL(tipValue)}`;
+    }
+  };
   canvas.onmouseleave = () => tip.style.opacity = 0;
 }
 
@@ -1494,48 +1534,73 @@ function drawRegionChart(data) {
   const canvas = document.getElementById('region');
   const ctx = canvas.getContext('2d');
   const rect = canvas.getBoundingClientRect();
-  canvas.width = rect.width * 2; canvas.height = rect.height * 2; ctx.scale(2, 2);
+
+  // Clear canvas
+  canvas.width = rect.width;
+  canvas.height = rect.height;
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-  const regions = {};
-  data.forEach(d => regions[d.region] = (regions[d.region] || 0) + d.premium);
-  const entries = Object.entries(regions).sort((a,b) => b[1] - a[1]);
+  const regionTotals = {};
+  data.forEach(d => regionTotals[d.region] = (regionTotals[d.region] || 0) + d.premium);
+  const entries = Object.entries(regionTotals).sort((a, b) => b[1] - a[1]);
+
   if (entries.length === 0) return;
 
-  const maxVal = Math.max(...entries.map(e => e[1])) * 1.1;
-  const padX = 80, padY = 40;
-  const w = canvas.width/2 - padX - 20;
-  const h = canvas.height/2 - padY*2;
-  const barW = w / entries.length * 0.7;
-  const gap = w / entries.length * 0.3;
+  const maxVal = Math.max(...entries.map(e => e[1]));
+  const count = entries.length;
 
-  ctx.fillStyle = '#1e293b'; ctx.fillRect(0,0,canvas.width/2,canvas.height/2);
+  const padX = 50;
+  const padY = 20;
+  const w = canvas.width - 2 * padX;
+  const h = canvas.height - 2 * padY;
 
-  ctx.strokeStyle = '#334155'; ctx.fillStyle = '#94a3b8'; ctx.textAlign = 'right';
-  for(let i = 0; i <= 5; i++) {
-    const y = padY + i * (h/5);
-    ctx.beginPath(); ctx.moveTo(padX, y); ctx.lineTo(padX + w, y); ctx.stroke();
-    ctx.fillText((maxVal*(5-i)/5/100000).toFixed(2) + 'L', padX - 8, y + 4);
+  const gap = 15;
+  const barW = (w - (count - 1) * gap) / count;
+
+  // Draw Y-axis grid lines and labels
+  ctx.strokeStyle = '#334155';
+  ctx.fillStyle = '#94a3b8';
+  ctx.font = '12px system-ui';
+  ctx.textAlign = 'right';
+  const stepY = h / 4;
+  const labelStep = Math.ceil(maxVal / 4);
+
+  for (let i = 0; i <= 4; i++) {
+    const y = padY + h - i * stepY;
+    ctx.beginPath();
+    ctx.moveTo(padX, y);
+    ctx.lineTo(padX + w, y);
+    ctx.stroke();
+
+    const label = formatL(i * labelStep);
+    ctx.fillText(label, padX - 5, y + 4);
   }
 
+  // Draw bars and labels
   entries.forEach(([region, val], i) => {
-    const x = padX + i * (barW + gap) + gap/2;
-    const barH = (val/maxVal) * h;
-    const y = padY + h - barH;
-    ctx.fillStyle = '#10b981';
-    ctx.fillRect(x, y, barW, barH);
+    const x = padX + i * (barW + gap);
+    const h_bar = (val / maxVal) * h;
+    const y = padY + h - h_bar;
 
+    // Draw bar
+    ctx.fillStyle = '#3b82f6';
+    ctx.fillRect(x, y, barW, h_bar);
+
+    // Draw region label
     ctx.save();
-    ctx.translate(x + barW/2, padY + h + 20);
-    ctx.rotate(-Math.PI/4);
-    ctx.fillStyle = '#94a3b8';
-    ctx.textAlign = 'right';
+    ctx.translate(x + barW / 2, padY + h + 5);
+    ctx.rotate(Math.PI / 4);
+    ctx.fillStyle = '#e2e8f0';
+    ctx.textAlign = 'left';
+    ctx.font = '12px system-ui';
     ctx.fillText(region, 0, 0);
     ctx.restore();
 
+    // Draw value label
     ctx.fillStyle = '#e2e8f0';
     ctx.textAlign = 'center';
-    ctx.fillText(formatL(val), x + barW/2, y - 8);
+    ctx.font = '12px system-ui';
+    ctx.fillText(formatL(val), x + barW / 2, y - 8);
   });
 
   const tip = document.getElementById('regionTip');
@@ -1564,23 +1629,9 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
-  ['regionSelect', 'search'].forEach(id => {
-    document.getElementById(id).addEventListener('input', filterAndUpdate);
-    document.getElementById(id).addEventListener('change', filterAndUpdate);
-  });
-
-  window.addEventListener('resize', () => {
-    drawTrendChart(allData.filter(d => true));
-    drawRegionChart(allData.filter(d => true));
-  });
+  document.getElementById('regionSelect').addEventListener('change', filterAndUpdate);
+  document.getElementById('search').addEventListener('input', filterAndUpdate);
 });
 </script>
 </body>
 </html>
-
-
-
-
-
-
-
